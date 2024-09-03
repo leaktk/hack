@@ -1,0 +1,51 @@
+#! /usr/bin/env python3
+
+"""
+NAME
+    remove-files
+
+USAGE
+    leaktk-scanner --kind Files --resource . | remove-files
+
+DESCRIPTION
+
+    Removes files found in leaktk-scanner --kind Files scans
+"""
+
+import json
+import sys
+import os
+
+
+def main():
+    """
+    Main loops through the results from stdin and removes the files
+    """
+    exit_status = 0
+
+    for response in map(json.loads, sys.stdin):
+        kind = response["request"]["kind"]
+        basepath = response["request"]["resource"]
+
+        if kind != "Files":
+            print(f"unsuported request kind: kind={kind}")
+            exit_status = 1
+            continue
+
+        for result in response["results"]:
+            path = os.path.join(basepath, result["location"]["path"])
+
+            if os.path.exists(path):
+                print(f"removed file: path={path}")
+
+                try:
+                    os.unlink(path)
+                except Exception as e:
+                    print(f"could not remove file: path={path} error={e}")
+                    exit_status = 1
+
+    return exit_status
+
+
+if __name__ == "__main__":
+    sys.exit(main())
