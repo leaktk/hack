@@ -2,10 +2,10 @@
 
 """
 NAME
-    remove-files
+    leaktk-remove-files
 
 USAGE
-    leaktk-scanner --kind Files --resource . | remove-files
+    leaktk-scanner --kind Files --resource . | leakkt-remove-files
 
 DESCRIPTION
 
