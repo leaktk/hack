@@ -34,15 +34,17 @@ def main():
 
         for result in response["results"]:
             path = os.path.join(basepath, result["location"]["path"])
+            description = result["rule"]["description"]
+            line = result["location"]["start"]["line"]
 
             if os.path.exists(path):
-                print(f"removed file: path={path}")
+                print(f"removed file: path={path}#L{line} description={description}")
 
                 try:
                     os.unlink(path)
                 except Exception as e:
-                    print(f"could not remove file: path={path} error={e}")
-                    exit_status = 1
+                    print(f"could not remove file: path={path}#L{line} description={description} error={e}")
+                    exit_status = 2
 
     return exit_status
 
