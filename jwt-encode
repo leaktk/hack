@@ -1,0 +1,14 @@
+#! /usr/bin/env bash
+#
+# USAGE
+#   echo -n '{"some":"payload"}' | jwt-encode signature-secret
+#
+# DESCRIPTION
+#   A tool that's mostly useful for creating quick JWTs for testing
+
+key="$1"
+header="$(echo -n '{"alg":"HS256","typ":"JWT"}' |  basenc --base64url -w 0 | sed -E 's/=+$//')"
+payload="$(cat | basenc --base64url -w 0 | sed -E 's/=+$//')"
+signature="$(echo -n "${header}.${payload}" | openssl dgst -sha256 -hmac "${key}" -binary | basenc --base64url -w 0 | sed -E 's/=+$//')"
+
+echo "${header}.${payload}.${signature}"
