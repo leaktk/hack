@@ -1,0 +1,81 @@
+#! /usr/bin/python3
+import sys
+import base64
+import math
+
+USAGE = """
+Genrate a regex to search base64 encoded versions of a string.
+
+Note this can generate regular base64 (the default) or URL-safe base64
+
+USAGE
+
+    gen-base64-search-regex [OPTIONS] <search-string>
+
+
+OPTIONS
+
+    --url   use URL-safe base64 (default to regular base64)
+    --help  print this text
+
+EXAMPLE
+
+    $ gen-base64-search-regex --url pattern
+    > (cGF0dGVyb|BhdHRlcm4|wYXR0ZXJu)
+"""
+
+
+def encode(target, method, pad=0):
+    """
+    This does some permutations of the target with different levels of padding
+    and then chops off the characters that would be impacted by any surrounding
+    text.
+
+    The math:
+        8 comes from the number of bits in a byte
+        6 comes from the number of bits in a b64 character
+
+        This basically looks at the number of bytes that would change because
+        of the prefix or suffix to the data and chopts them off in the b64
+        encoded data.
+    """
+    padding = b"x" * pad
+    data = padding + target.encode("UTF-8")
+    start = math.ceil(pad * 8 / 6)
+    end = math.floor(len(data) * 8 / 6)
+
+    if start == end:
+        # You would end up with empty values that match everything
+        raise ValueError("target too small to generate regex")
+
+    return method(data)[start:end].decode()
+
+
+def main():
+    target = None
+    flags = {}
+
+    for arg in sys.argv[1:]:
+        if arg == "--help":
+            flags["help"] = True
+        elif arg == "--url":
+            flags["url"] = True
+        else:
+            target = arg
+
+    if flags.get("help") or not target:
+        print(USAGE)
+        sys.exit(1)
+
+    if flags.get("url"):
+        method = base64.urlsafe_b64encode
+    else:
+        method = base64.b64encode
+
+    patterns = (encode(target, method, pad=pad) for pad in range(0, 3))
+
+    print(f"({'|'.join(patterns)})")
+
+
+if __name__ == "__main__":
+    main()
