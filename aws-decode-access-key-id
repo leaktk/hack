@@ -1,0 +1,51 @@
+#! /usr/bin/env python3
+
+# Script to decode the AWS Account ID from an Access Key Id
+# Concept from:
+# https://medium.com/@TalBeerySec/a-short-note-on-aws-key-id-f88cc4317489
+#
+# Cobbled together by jkolbert@redhat.com
+
+import sys
+import base64
+import binascii
+
+USAGE = """
+NAME
+    aws-decode-access-key-id - Extract account information from AWS account IDs
+
+SYNOPSIS
+    aws-decode-access-key-id [-h|--help] [aws_access_key_id...]
+"""
+
+
+def account_id(access_key_id):
+    trimmed_access_key_id = access_key_id[4:]  # remove KeyID prefix
+    x = base64.b32decode(trimmed_access_key_id)
+    y = x[0:6]
+    z = int.from_bytes(y, byteorder="big", signed=False)
+
+    mask = int.from_bytes(
+        binascii.unhexlify(b"7fffffffff80"),
+        byteorder="big",
+        signed=False,
+    )
+
+    return (z & mask) >> 7
+
+
+def main(argv):
+    flags = {}
+
+    for arg in argv:
+        if arg in ("-h", "--help"):
+            print(USAGE)
+            return 1
+
+        print(f"aws_account_id={account_id(arg):012d}")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
