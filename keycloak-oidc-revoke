@@ -1,0 +1,26 @@
+#! /bin/bash
+#
+# Pipe OpenID Connect JWTs to this to revoke them
+# One JWT per line
+#
+# NOTE: this has only been tested with a few keycloak instances and may
+# not be very robust
+#
+# For details see:
+# https://www.keycloak.org/securing-apps/oidc-layers
+
+IFS='' read -r -d '' jq_filter << EOF
+  {
+    "token": .,
+    "extracted": split(".")[1] | @base64d | fromjson | {
+      "client_id": .azp,
+      "revoke_url": (.iss + "/protocol/openid-connect/revoke"),
+    }
+  }
+  | "curl --location '" + .extracted.revoke_url + "' "
+    + "--header 'Content-Type: application/x-www-form-urlencoded' "
+    + "--data-urlencode 'token=" + .token + "' "
+    + "--data-urlencode 'client_id=" + .extracted.client_id + "'"
+EOF
+
+jq -r -R "${jq_filter}" | bash
