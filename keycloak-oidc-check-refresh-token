@@ -1,0 +1,24 @@
+#! /bin/bash
+#
+# Pipe OpenID Connect JWTs to this to check the refresh token
+# One JWT per line
+#
+# For details see:
+# https://www.keycloak.org/securing-apps/oidc-layers
+
+IFS='' read -r -d '' jq_filter << EOF
+  {
+    "token": .,
+    "extracted": split(".")[1] | @base64d | fromjson | {
+      "client_id": .azp,
+      "token_url": (.iss + "/protocol/openid-connect/token"),
+    }
+  }
+  | "curl -X POST --location '" + .extracted.token_url + "' "
+    + "--header 'Content-Type: application/x-www-form-urlencoded' "
+    + "--data-urlencode 'refresh_token=" + .token + "' "
+    + "--data-urlencode 'grant_type=refresh_token' "
+    + "--data-urlencode 'client_id=" + .extracted.client_id + "'"
+EOF
+
+jq -r -R "${jq_filter}" | bash
