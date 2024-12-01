@@ -5,11 +5,15 @@ NAME
     leaktk-remove-files
 
 USAGE
-    leaktk-scanner --kind Files --resource . | leakkt-remove-files
+    leaktk-scanner --kind Files --resource . | leakkt-remove-files .
 
 DESCRIPTION
 
     Removes files found in leaktk-scanner --kind Files scans
+
+OPTIONS
+
+    The first option to the command is the base path for the scan
 """
 
 import json
@@ -24,13 +28,7 @@ def main():
     exit_status = 0
 
     for response in map(json.loads, sys.stdin):
-        kind = response["request"]["kind"]
-        basepath = response["request"]["resource"]
-
-        if kind != "Files":
-            print(f"unsuported request kind: kind={kind}")
-            exit_status = 1
-            continue
+        basepath = sys.argv[1]
 
         for result in response["results"]:
             path = os.path.join(basepath, result["location"]["path"])
