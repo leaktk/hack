@@ -1,0 +1,37 @@
+#! /usr/bin/env python3
+"""
+USAGE
+    strprob <string> <tries> <wordlist-path>
+
+DESCRIPTION
+    Figure out how likely it is for a string to show up in x tries.
+
+EXAMPLE
+    How many times should you expect "passp" to show up in a passphrase that
+    is 6 words long?
+
+    ```
+    $ strprob passw 6 eff_large_wordlist.txt
+    For 1 out of 7776 (1 - ((7776 - 1)/7776)^6):
+
+    0.0007713569082283822
+    ```
+"""
+
+import sys
+
+string = sys.argv[1].lower()
+tries = int(sys.argv[2])
+path = sys.argv[3]
+count = 0
+total = 0
+
+with open(path) as file:
+    for line in file:
+        total += 1
+
+        if string in line.lower():
+            count += 1
+
+print("For", count, "out of", total, f"(1 - (({total} - {count})/{total})^{tries}):\n")
+print(1 - pow((total - count)/total, tries))
