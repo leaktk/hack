@@ -1,0 +1,11 @@
+#! /usr/bin/env bash
+token="$1"
+
+if curl -sIH "Authorization: Bearer ${token}" https://huggingface.co/api/models | grep  '^HTTP/' | grep ' 200' &> /dev/null
+then
+  echo "valid"
+  exit 0
+else
+  echo "invalid"
+  exit 1
+fi
