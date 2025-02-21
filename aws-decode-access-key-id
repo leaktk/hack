@@ -42,7 +42,7 @@ def main(argv):
             print(USAGE)
             return 1
 
-        print(f"aws_account_id={account_id(arg):012d}")
+        print(f"aws_access_key_id={arg} aws_account_id={account_id(arg):012d}")
 
     return 0
 
