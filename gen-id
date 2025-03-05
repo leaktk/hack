@@ -1,0 +1,3 @@
+#! /usr/bin/env bash
+# Generate a id for use in leaktk
+openssl rand 8 | basenc --base64url | sed -s 's/=//g' | tr -d '\n'

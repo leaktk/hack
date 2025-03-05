@@ -1,0 +1,3 @@
+#! /bin/bash
+# Generate tokens with good entropy
+openssl rand 64 | basenc --base64url --wrap 0 | sed 's/=*$//'
