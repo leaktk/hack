@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import json
+import subprocess
+import re
+import logging
+from typing import Dict, Any, List, Union
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("leaktk-on-result")
+
+
+def get_nested_value(data: Dict[str, Any], path: str) -> Union[str, None]:
+    """
+    Access a nested value in a dictionary using dot notation.
+    For example, "location.path" would access data["location"]["path"]
+
+    Returns None if any part of the path doesn't exist.
+    """
+    parts = path.split(".")
+    current = data
+
+    for part in parts:
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            return None
+
+    return str(current) if current is not None else None
+
+
+def replace_template_vars(command: str, data: Dict[str, Any]) -> str:
+    """
+    Replace template variables in the format {{path.to.field}} with values from data.
+    """
+
+    def replace_match(match):
+        var_path = match.group(1).strip()
+        value = get_nested_value(data, var_path)
+        return value if value is not None else match.group(0)
+
+    pattern = r"\{\{\s*([^{}]+)\s*\}\}"
+    return re.sub(pattern, replace_match, command)
+
+
+def process_result(
+    working_dir: str, command_args: List[str], result: Dict[str, Any]
+) -> bool:
+    """
+    Process a single result by replacing template vars in command and executing it.
+    Returns True if successful, False otherwise.
+    """
+    processed_args = [replace_template_vars(arg, result) for arg in command_args]
+
+    logger.info(f"Running command: {' '.join(processed_args)}")
+
+    try:
+        # Execute the command in the working directory
+        process = subprocess.run(
+            processed_args,
+            cwd=working_dir,
+            capture_output=True,
+            text=True,
+            check=False,  # Don't raise exception, we'll handle errors
+        )
+
+        if process.returncode != 0:
+            logger.error(f"Command failed with exit code {process.returncode}")
+            logger.error(f"Error output: {process.stderr}")
+            return False
+
+        logger.debug(f"Command output: {process.stdout}")
+        return True
+    except Exception as e:
+        logger.error(f"Error executing command: {e}")
+        return False
+
+
+def main():
+    if len(sys.argv) < 3:
+        print(f"Usage: {sys.argv[0]} WORKING_DIR COMMAND [ARGS...]", file=sys.stderr)
+        sys.exit(1)
+
+    working_dir = sys.argv[1]
+    command_args = sys.argv[2:]
+
+    if not os.path.isdir(working_dir):
+        logger.error(f"Working directory doesn't exist: {working_dir}")
+        sys.exit(1)
+
+    success = True
+    scan_data = ""
+
+    # Read JSON data from stdin
+    for line in sys.stdin:
+        try:
+            data = json.loads(line)
+            # Find the results array
+            if "results" in data and isinstance(data["results"], list):
+                results = data["results"]
+                logger.info(f"Processing {len(results)} results")
+
+                for i, result in enumerate(results):
+                    logger.info(f"Processing result {i+1}/{len(results)}")
+                    if not process_result(working_dir, command_args, result):
+                        success = False
+            else:
+                logger.error("No results array found in input data")
+                success = False
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON: {e}")
+            success = False
+
+    sys.exit(0 if success else 1)
+
+
+if __name__ == "__main__":
+    main()
