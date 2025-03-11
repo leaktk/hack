@@ -1,0 +1,5 @@
+#! /usr/bin/env bash
+
+# Search for a openssh key containing comment_search in the comment
+comment_search="$1"
+echo "-----BEGIN OPENSSH PRIVATE KEY-----[\\s\\S]*?$(gen-base64-search-regex "${comment_search}")[\\s\\S]*?-----END OPENSSH PRIVATE KEY-----"
