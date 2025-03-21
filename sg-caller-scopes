@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 api_key="$1"
 
-curl "https://api.sendgrid.com/v3/scopes" \
+curl --silent "https://api.sendgrid.com/v3/scopes" \
      -H "Authorization: Bearer ${api_key}" \
      -H "Content-Type: application/json" | jq
