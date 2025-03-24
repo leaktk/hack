@@ -1,0 +1,7 @@
+#! /usr/bin/env bash
+token="$1"
+
+curl -sX POST \
+  -H 'Content-Type: application/json; charset=utf-8' \
+  -H "Authorization: Bearer ${token}" \
+  "https://slack.com/api/auth.test" | jq '.ok'
