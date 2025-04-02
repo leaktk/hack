@@ -1,0 +1,60 @@
+#! /usr/bin/env python3
+
+# Script to generate an AWS Access Key ID prefix from an account ID
+import sys
+import base64
+import binascii
+
+USAGE = """
+NAME
+    gen-aws-key-id-search-regex - Generate an AWS Access Key ID search regex from an account ID
+
+SYNOPSIS
+    gen-aws-key-id-search-regex [-h|--help] [aws_account_id...]
+"""
+
+
+def access_key_id_regex(account_id):
+    x = int(account_id) << 7
+    mask = int.from_bytes(
+        binascii.unhexlify(b"7fffffffff80"),
+        byteorder="big",
+        signed=False,
+    )
+
+    # Apply the mask to ensure our value has the right form
+    # This preserves the bits that would have survived the original masking
+    y = x & mask
+
+    # Create a complement of the mask to identify which bits were zeroed
+    complement_mask = ~mask & ((1 << 48) - 1)  # 48 bits (6 bytes)
+
+    # Convert back to 6 bytes
+    z = y.to_bytes(6, byteorder="big", signed=False)
+
+    # Base32 encode
+    encoded = base64.b32encode(z).decode('ascii')
+    # Add the KeyID prefix (typically "AKIA")
+    return rf"AKIA{encoded[:8]}[A-Z0-9]{{8}}"
+
+def main(argv):
+    flags = {}
+    regexes = []
+
+    if len(argv) == 0:
+        print(USAGE)
+        return 1
+
+    for arg in argv:
+        if arg in ("-h", "--help"):
+            print(USAGE)
+            return 1
+
+        regexes.append(access_key_id_regex(arg))
+
+    print(rf"\b(?:{'|'.join(regexes)})\b")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
