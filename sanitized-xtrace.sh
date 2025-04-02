@@ -9,7 +9,7 @@ read -r -d '' REPLACES << EOF
 s/(?i)((?:secret|auth|passw|token)\\w+[:=]\\s*?[\\'\\"]?).*?([\\'\\"])/\$1 ...REDACTED...\$2/g;
 EOF
 
-sanitize() {
+__sanitize_xtrace() {
     # Disable xtrace since we're handling it here
     [[ "${SHELLOPTS}" =~ "xtrace" ]] && set +x
 
@@ -21,5 +21,5 @@ sanitize() {
     echo "${PS4:-+ }${BASH_COMMAND}" | perl -pe "${REPLACES}" >&2
 }
 
-trap 'sanitize' DEBUG
+trap '__sanitize_xtrace' DEBUG
 # -----END SANITIZED XTRACE-----
