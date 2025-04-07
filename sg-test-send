@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+recipient_address="$1"
+api_token="$2"
+read -r -d '' payload << EOM
+{
+  "personalizations": [
+    {
+      "to": [
+        {
+          "email": "${recipient_address}"
+        }
+      ],
+      "subject": "SendGrid Send Test"
+    }
+  ],
+  "from": {
+    "email": "${recipient_address}"
+  },
+  "content": [
+    {
+      "type": "text/plain",
+      "value": "Success!"
+    }
+  ]
+}
+EOM
+
+curl -X "POST" 'https://api.sendgrid.com/v3/mail/send' \
+  -H "Authorization: Bearer ${api_token}" \
+  -H 'Content-Type: application/json' \
+  -d "${payload}"
