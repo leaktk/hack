@@ -1,0 +1,12 @@
+#! /usr/bin/env bash
+#
+# NAME
+#       certinfo - Display SSL cert details about a host
+#
+# SYNOPSIS
+#       certinfo <host>:<port>
+#
+target="$1"
+servername="$(echo "${target}" | cut -d ':' -f 1)"
+
+echo | openssl s_client -servername "${servername}" -connect "${target}" -showcerts 2> /dev/null | openssl x509 -text -noout

@@ -1,0 +1,12 @@
+#! /usr/bin/env bash
+#
+# NAME
+#       getcert - Fetch a cert from a host
+#
+# SYNOPSIS
+#       getcert <host>:<port>
+#
+target="$1"
+servername="$(echo "${target}" | cut -d ':' -f 1)"
+
+echo | openssl s_client -servername "${servername}" -connect "${target}" -showcerts 2> /dev/null | openssl x509
