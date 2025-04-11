@@ -1,0 +1,30 @@
+#! /usr/bin/env bash
+# This script is meant for use with leaktk-on-result
+# USAGE
+#       leaktk-on-result <workdir_path> gpg-encrypt-for "${GPG_RECIPIENT}" "{{locatin.path}}"
+#
+# NOTE
+#       This replaces the original file!
+set -euo pipefail
+recipient="$1"
+filepath="$2"
+outputpath="${filepath}.gpg"
+
+function log {
+  echo "$@" >&1
+}
+
+if [[ -f "${filepath}" ]]
+then
+  gpg --batch --yes --trust-model always --encrypt --recipient "${recipient}" --output "${outputpath}" "${filepath}"
+  log "[INFO] file encrypted: ${filepath} -> ${outputpath}"
+  rm "${filepath}"
+  log "[INFO] file removed: ${filepath}"
+else
+  if [[ -f "${outputpath}" ]]
+  then
+    log "[INFO] skipping already encrypted file: ${filepath}"
+  else
+    log "[WARN] could not find file: ${filepath}"
+  fi
+fi
