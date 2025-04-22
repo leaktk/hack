@@ -1,0 +1,25 @@
+#! /usr/bin/env python3
+
+import json
+import requests
+import sys
+
+opts, pos = {"host": "gitlab.com"}, []
+args = iter(sys.argv[1:])
+
+for arg in args:
+    if arg.startswith("--"):
+        opts[arg[2:]] = next(args)
+    else:
+        pos.append(arg)
+
+api_url = f"https://{opts['host']}/api"
+
+with requests.Session() as s:
+    s.headers.update({"PRIVATE-TOKEN": pos[0]})
+    data = {
+        "user": s.get(f"{api_url}/v4/user").json(),
+        "token": s.get(f"{api_url}/v4/personal_access_tokens/self").json(),
+    }
+
+print(json.dumps(data, indent=2))
