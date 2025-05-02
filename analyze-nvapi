@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+import sys
+import requests
+import json
+
+if len(sys.argv) != 2:
+    print('{"valid": false, "error": "Usage: analyze-nvapi <api_key>"}')
+    sys.exit(1)
+
+api_key = sys.argv[1]
+url = "https://api.ngc.nvidia.com/v3/keys/get-caller-info"
+headers = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'Accept': 'application/json' # Added Accept header for good measure
+}
+data = {'credentials': api_key}
+
+output = {"valid": False, "analysis": {}}
+
+try:
+    response = requests.post(url, headers=headers, data=data, timeout=10)
+    if response.status_code == 200:
+        output["valid"] = True
+        try:
+            # Attempt to parse JSON response for extra details if available
+            output["analysis"] = response.json()
+        except json.JSONDecodeError:
+             output["analysis"]["raw_response"] = response.text # Store raw if not JSON
+    elif response.status_code == 401:
+        output["valid"] = False # Invalid key
+    else:
+        output["error"] = f"Unexpected status code: {response.status_code}"
+        try:
+            output["analysis"]["error_details"] = response.json()
+        except json.JSONDecodeError:
+             output["analysis"]["raw_error_response"] = response.text
+
+except requests.exceptions.RequestException as e:
+    output["error"] = f"Request failed: {e}"
+
+print(json.dumps(output))
