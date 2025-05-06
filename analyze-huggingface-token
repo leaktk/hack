@@ -44,7 +44,7 @@ def analyze_hf_token(token):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("USAGE:\n   analyze-huggingface <hf_token>")
+        print("USAGE:\n   analyze-huggingface-token <hf_token>")
         sys.exit(1)
 
     token_to_check = sys.argv[1]

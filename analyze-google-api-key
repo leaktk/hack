@@ -1,0 +1,67 @@
+#! /usr/bin/env python3
+import sys
+import json
+import requests
+import os
+
+def analyze_google_api_key(api_key):
+    results = {"valid": False, "analysis": {}}
+    headers = {"Accept": "application/json"}
+
+    try:
+        discovery_url = f"https://www.googleapis.com/discovery/v1/apis?key={api_key}"
+        response = requests.get(discovery_url, headers=headers, timeout=10)
+        if response.status_code == 200:
+             results["analysis"]["discovery_api_check"] = "Potentially Valid Format/Active"
+        elif response.status_code == 400 and "API key not valid" in response.text:
+             results["analysis"]["discovery_api_check"] = "Invalid Key"
+             print(json.dumps(results, indent=2))
+             return
+        elif response.status_code == 403:
+             results["analysis"]["discovery_api_check"] = "Forbidden (Likely Valid but Restricted)"
+             results["valid"] = True
+        else:
+             results["analysis"]["discovery_api_check"] = f"Failed (Status: {response.status_code})"
+    except requests.exceptions.RequestException as e:
+        results["analysis"]["discovery_api_check"] = f"Error: {e}"
+
+    try:
+        identity_url = f"https://www.googleapis.com/identitytoolkit/v3/relyingparty/getProjectConfig?key={api_key}"
+        response = requests.get(identity_url, headers=headers, timeout=10)
+
+        if response.status_code == 200:
+            results["valid"] = True # Finding a working API confirms validity
+            try:
+                project_info = response.json()
+                results["analysis"]["identity_toolkit_v3_check"] = "Success"
+                results["analysis"]["project_id"] = project_info.get("projectId", "Not Found")
+            except json.JSONDecodeError:
+                 results["analysis"]["identity_toolkit_v3_check"] = "Success (but response not JSON)"
+        elif response.status_code == 400 and "API_KEY_INVALID" in response.text:
+             results["analysis"]["identity_toolkit_v3_check"] = "Invalid Key"
+             # If invalid here, unlikely to be valid elsewhere unless highly restricted
+        elif response.status_code == 403:
+            # 403 Forbidden likely means the key is valid but doesn't have Identity Toolkit API enabled/permission.
+            results["analysis"]["identity_toolkit_v3_check"] = "Forbidden (Likely Valid but No Permission)"
+            results["valid"] = True # Even if forbidden, it confirms key validity
+        else:
+             results["analysis"]["identity_toolkit_v3_check"] = f"Failed (Status: {response.status_code})"
+
+    except requests.exceptions.RequestException as e:
+        results["analysis"]["identity_toolkit_v3_check"] = f"Error: {e}"
+
+    # Consider the key potentially valid if *any* check indicated validity, even if forbidden
+    if "discovery_api_check" in results["analysis"] and "Forbidden" in results["analysis"]["discovery_api_check"]:
+         results["valid"] = True
+    if "identity_toolkit_v3_check" in results["analysis"] and "Forbidden" in results["analysis"]["identity_toolkit_v3_check"]:
+         results["valid"] = True
+
+    print(json.dumps(results, indent=2))
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage:\n    analyze-google-api-key <api_key>")
+        sys.exit(1)
+
+    api_key_to_check = sys.argv[1]
+    analyze_google_api_key(api_key_to_check)
