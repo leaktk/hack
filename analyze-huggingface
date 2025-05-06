@@ -1,0 +1,51 @@
+#! /usr/bin/env python3
+import sys
+import json
+import requests
+
+
+def analyze_hf_token(token):
+    headers = {"Authorization": f"Bearer {token}"}
+    analysis = {}
+    valid = False
+    try:
+        # Use the whoami endpoint to check token validity and get user info
+        response = requests.get("https://huggingface.co/api/whoami-v2", headers=headers)
+        if response.status_code == 200:
+            valid = True
+            user_info = response.json()
+            analysis["username"] = user_info.get("name")
+            analysis["email"] = user_info.get("email")
+            analysis["type"] = user_info.get("type")  # user, org, etc.
+            if user_info.get("auth") and user_info["auth"].get("accessToken"):
+                analysis["token_role"] = user_info["auth"]["accessToken"].get("role")
+                analysis["token_name"] = user_info["auth"]["accessToken"].get(
+                    "displayName"
+                )
+            orgs = user_info.get("orgs", [])
+            if orgs:
+                analysis["organizations"] = [
+                    {"name": org.get("name"), "role": org.get("roleInOrg")}
+                    for org in orgs
+                ]
+        elif response.status_code == 401:
+            valid = False
+        else:
+            # Handle other potential errors or statuses if needed
+            analysis["error"] = f"Unexpected status code: {response.status_code}"
+            analysis["response_body"] = response.text
+
+    except requests.exceptions.RequestException as e:
+        analysis["error"] = f"Request failed: {e}"
+        valid = False  # Consider it invalid if we can't reach the API
+
+    print(json.dumps({"valid": valid, "analysis": analysis}, indent=2))
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("USAGE:\n   analyze-huggingface <hf_token>")
+        sys.exit(1)
+
+    token_to_check = sys.argv[1]
+    analyze_hf_token(token_to_check)
