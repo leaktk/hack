@@ -27,6 +27,6 @@ func shannonEntropy(data string) (entropy float64) {
 
 func main() {
 	for _, data := range os.Args[1:] {
-		fmt.Printf("%f\n", shannonEntropy(data))
+		fmt.Printf("%f %s\n", shannonEntropy(data), data)
 	}
 }
