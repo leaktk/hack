@@ -1,0 +1,10 @@
+#! /usr/bin/env bash
+# USAGE
+#     archive-repo <repo-url>
+#
+# DESCRIPTION
+#     Quick mirror a repo for later analysis
+set -euo pipefail
+repo="$(echo "$1" | sed 's/.*:\/\///' | sed 's/\.git$//' | sed 's/\/$//').git"
+set -x
+git clone --mirror "https://${repo}" "${ARCHIVE_DIR:-"${HOME}/Archives"}/${repo}/$(date +%s)"
