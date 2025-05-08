@@ -1,0 +1,5 @@
+#! /usr/bin/bash
+
+git cat-file --batch-check='%(objectname)' --batch-all-objects --buffer | \
+  git cat-file --batch --buffer | \
+  awk 'NR % 2 == 0'
