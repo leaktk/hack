@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/h2non/filetype"
+	"github.com/h2non/filetype/types"
 )
 
 func main() {
@@ -32,16 +34,21 @@ func main() {
 		}
 		defer file.Close()
 
-		buf := make([]byte, 0, 512)
+		buf := make([]byte, 512)
 		_, err = file.Read(buf)
 		if err != nil {
-			log.Printf("[ERR] skipping file: error=%q, path=%s", err, path)
+			if err != io.EOF {
+				log.Printf("[ERR] skipping file: error=%q, path=%s", err, path)
+				return nil
+			}
+		}
+
+		kind, _ := filetype.Archive(buf)
+		if kind == types.Unknown {
 			return nil
 		}
 
-		if filetype.IsArchive(buf) {
-			fmt.Println(path)
-		}
+		fmt.Println(kind.MIME.Value, path)
 
 		return nil
 	})
