@@ -1,0 +1,36 @@
+#! /usr/bin/env bash
+hack_dir="$(cd $(dirname "$0") && pwd -P)"
+set -exuo pipefail
+
+install_script() {
+  script_path="${hack_dir}/$1"
+  cmd_name="$(basename "${script_path}" | sed 's/\.[^\.]*$//g')"
+  prefix="${HOME}/.local"
+  cmd_path="${prefix}/bin/${cmd_name}"
+
+  if [[ ! -d "${prefix}" ]]
+  then
+    mkdir -p "${prefix}"
+  fi
+
+  if [[ "${script_path}" == *.go ]]
+  then
+    go build -o "${cmd_path}" "${script_path}"
+  else
+    cp "${script_path}" "${cmd_path}"
+    chmod ug=rwx,o=rx "${cmd_path}"
+  fi
+}
+
+main() {
+  case "$1" in
+    install)
+      install_script $2
+      ;;
+    *)
+      echo "invalid option: $1" && exit 1
+      ;;
+  esac
+}
+
+main $@
