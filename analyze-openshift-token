@@ -13,7 +13,7 @@ def analyze_openshift_token(host, token):
     valid = False
 
     try:
-        response = requests.get(api_url, headers=headers)
+        response = requests.get(api_url, headers=headers, timeout=15)
 
         if response.status_code == 200:
             valid = True
