@@ -1,0 +1,73 @@
+#! /usr/bin/env python3
+import sys
+import requests
+import json
+import base64
+
+
+def decode_jwt_part(part_str):
+    try:
+        padding = "=" * (4 - (len(part_str) % 4))
+        decoded_bytes = base64.urlsafe_b64decode(part_str + padding)
+        decoded_str = decoded_bytes.decode("utf-8")
+        return json.loads(decoded_str)
+    except Exception as e:
+        print(f"Error decoding JWT part: {e}", file=sys.stderr)
+        return None
+
+
+def analyze(token_url, client_id, client_secret):
+    """
+    Attempts to obtain an OIDC token to validate credentials.
+    """
+    data = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+    }
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    result = {"valid": False, "analysis": {}}
+
+    try:
+        response = requests.post(token_url, data=data, headers=headers)
+        response.raise_for_status()
+        token_data = response.json()
+
+        if "access_token" in token_data:
+            # Only include the payload
+            token_data["access_token_payload"] = decode_jwt_part(
+                token_data.pop("access_token").split(".")[1],
+            )
+
+            result["valid"] = True
+            result["analysis"]["access_token_retrieved"] = True
+            result["analysis"]["token"] = token_data
+        else:
+            result["analysis"]["error"] = "Access token not found in response"
+            result["analysis"]["response_content"] = token_data
+    except requests.exceptions.HTTPError as e:
+        result["analysis"]["error"] = f"HTTP error: {e.response.status_code}"
+        try:
+            result["analysis"]["response_content"] = e.response.json()
+        except json.JSONDecodeError:
+            result["analysis"]["response_content"] = e.response.text
+        except requests.exceptions.RequestException as e:
+            result["analysis"]["error"] = f"Request failed: {str(e)}"
+        except json.JSONDecodeError as e:
+            result["analysis"]["error"] = f"Failed to decode JSON response: {str(e)}"
+            result["analysis"]["response_content"] = response.text
+
+    return result
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        print("USAGE:\n\t analyze-oidc-config <token_url> <client_id> <client_secret>")
+        sys.exit(1)
+
+    token_url_arg = sys.argv[1]
+    client_id_arg = sys.argv[2]
+    client_secret_arg = sys.argv[3]
+    print(
+        json.dumps(analyze(token_url_arg, client_id_arg, client_secret_arg), indent=2)
+    )
