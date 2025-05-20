@@ -1,0 +1,14 @@
+#! /usr/bin/env bash
+config_dir="$(mktemp -d)"
+trap 'rm "${config_dir}/gitleaks.toml"' EXIT
+
+echo "
+[[rules]]
+id = 'grep'
+regex = '''$1'''
+" > "${config_dir}/gitleaks.toml"
+
+gitleaks \
+   --config "${config_dir}/gitleaks.toml" \
+   --report-format=json --report-path=/dev/stdout \
+   git "$2" | jq '.[]'
