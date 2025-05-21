@@ -1,0 +1,62 @@
+#! /usr/bin/env python3
+
+import sys
+import json
+import requests
+
+
+def analyze(api_key):
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+    }
+    result = {}
+    is_valid = False
+
+    try:
+        resp = requests.get("https://api.openai.com/v1/models", headers=headers)
+
+        if resp.status_code == 200:
+            is_valid = True
+            result["models"] = [m["id"] for m in resp.json().get("data", []) if "id" in m]
+        elif resp.status_code == 401:
+            result["models"] = {
+                "error": "Unauthorized - Invalid API Key for /v1/models",
+                "status": resp.status_code,
+            }
+        else:
+            result["models"] = {
+                "error": f"HTTP Status {resp.status_code} for /v1/models",
+                "response": resp.json(),
+                "status": resp.status_code,
+            }
+    except Exception as e:
+        result["models"] = {"error": str(e)}
+
+    try:
+        resp = requests.get("https://api.openai.com/v1/me", headers=headers)
+        if resp.status_code == 200:
+            is_valid = True
+            result["user"] = resp.json()
+        elif resp.status_code == 401:
+            result["user"] = {
+                "error": "Unauthorized - Invalid API Key for /v1/me",
+            }
+        else:
+            result["user"] = {
+                "error": f"HTTP Status {resp.status_code} for /v1/me",
+                "response": resp.json(),
+                "status": resp.status_code,
+            }
+    except Exception as e:
+        result["user"] = {"error": str(e)}
+
+    return {"valid": is_valid, "analysis": result}
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("USAGE:\n\tanalyze-openai-token <api_key>")
+        sys.exit(1)
+
+    api_key_to_check = sys.argv[1]
+    print(json.dumps(analyze(api_key_to_check), indent=2))

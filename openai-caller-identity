@@ -1,5 +1,0 @@
-#! /usr/bin/env bash
-api_key="$1"
-
-curl -s https://api.openai.com/v1/me \
-  -H "Authorization: Bearer ${api_key}"
