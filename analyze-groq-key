@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+import sys
+import json
+import requests  # Changed from http.client to requests
+
+
+def analyze_groq_key(api_key):
+    analysis_output = {}
+    valid_key = False
+
+    models_url = "https://api.groq.com/openai/v1/models"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+    try:
+        res = requests.get(models_url, headers=headers)
+
+        if res.status_code == 200:
+            valid_key = True
+            response_data = res.json()
+            model_names = []
+            if "data" in response_data and isinstance(response_data["data"], list):
+                for model in response_data["data"]:
+                    if "id" in model:
+                        model_names.append(model["id"])
+            analysis_output["accessible_models_sample"] = model_names[:3]
+            analysis_output["model_count"] = len(model_names)
+        elif res.status_code == 401:
+            valid_key = False
+            analysis_output["error"] = "Invalid API Key (Unauthorized)"
+        else:
+            analysis_output["error"] = (
+                f"Failed to validate key, status: {res.status_code}, response: {res.text}"
+            )
+    except requests.exceptions.RequestException as e:
+        analysis_output["error"] = str(e)
+    except json.JSONDecodeError as e:
+        analysis_output["error"] = (
+            f"Failed to decode JSON response: {str(e)}, Response text: {res.text if 'res' in locals() else 'N/A'}"
+        )
+    except Exception as e:  # Catch any other unexpected errors
+        analysis_output["error"] = f"An unexpected error occurred: {str(e)}"
+
+    result = {"valid": valid_key, "analysis": analysis_output}
+    print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("USAGE:\n\tanalyze-groq-key <api_key>")
+        sys.exit(1)
+
+    api_key_to_check = sys.argv[1]
+    analyze_groq_key(api_key_to_check)
