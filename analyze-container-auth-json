@@ -1,19 +1,93 @@
-#!/usr/bin/env bash
-# USAGE
-#
-#   analyze-container-auth-json /path/to/auth.json
-#
-authfile="$1"
-IFS='' read -r -d '' validate_script << EOF
-if podman login --authfile '${authfile}' '{}' &> /dev/null
-then
-	echo '  {"valid": true, "analysis": {"host": "{}"}}'
-else
-	echo '  {"valid": false, "analysis": {"host": "{}"}}'
-fi
-EOF
+#!/usr/bin/env python3
 
-cat "${authfile}" \
-	| jq -r '.auths | keys | .[]' \
-	| xargs -I '{}' bash -c "${validate_script}" \
-	| jq
+import base64
+import json
+import os
+import sys
+
+import requests
+
+from requests.exceptions import RequestException
+
+
+def with_error(result, message, **kwargs):
+    """
+    return a copy of the result with error info added
+    """
+    return result | {
+        "error": {
+            "message": message,
+            **kwargs,
+        }
+    }
+
+
+def analyze_auth_info(host, auth_info):
+    """
+    perform analyzis on each auth_info
+    """
+    analysis = {
+        "host": host,
+    }
+    result = {
+        "valid": False,
+        "analysis": analysis,
+    }
+
+    if "email" in auth_info:
+        analysis["email"] = auth_info["email"]
+
+    encoded_token = auth_info.get("auth")
+    if not encoded_token:
+        return with_error(result, "missing auth token")
+
+    try:
+        token = base64.b64decode(encoded_token).decode("utf-8")
+    except Exception:
+        return with_error(result, "could not decode token")
+
+    username, password = token.split(":", 1)
+    analysis["username"] = username
+
+    try:
+        resp = requests.get(
+            f"https://{host}/v2/",
+            auth=(username, password),
+            timeout=10,
+        )
+    except RequestException:
+        return with_error(result, "request failed")
+
+    match resp.status_code:
+        case 200:
+            result["valid"] = True
+        case 401:
+            result["valid"] = True
+        case _:
+            return with_error(
+                result,
+                "request failed",
+                status_code=resp.status_code,
+            )
+
+    return result
+
+
+def analyze(auth_file_path):
+    with open(auth_file_path, encoding="UTF-8") as auth_file:
+        config = json.load(auth_file)
+
+    for host, auth_info in config["auths"].items():
+        yield analyze_auth_info(host, auth_info)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(
+            f"USAGE:\n\t{os.path.basename(sys.argv[0])} /path/to/auth.json",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    for result in analyze(sys.argv[1]):
+        print(json.dumps(result, indent=2))
