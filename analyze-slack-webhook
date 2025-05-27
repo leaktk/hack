@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+import sys
+import requests
+import json
+
+
+def analyze(webhook_url):
+    results = {
+        "valid": False,
+    }
+
+    try:
+
+        # Send junk data to the endpoint to see avoid creating content
+        # if invalid payload is returned that means the url was valid but
+        # just the payload wasn't
+        resp = requests.post(webhook_url, json="some-junk-data", timeout=5)
+        results["valid"] = (
+            resp.status_code == 400 and "invalid_payload" == resp.text.strip()
+        )
+    except requests.exceptions.RequestException as e:
+        results["error"] = {"message": f"Request failed: {e}"}
+
+    return results
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("USAGE:\n\tanalyze-slack-webhook <webhook-url>")
+        sys.exit(1)
+
+    webhook_url = sys.argv[1]
+    result = analyze(webhook_url)
+    print(json.dumps(result, indent=2))
