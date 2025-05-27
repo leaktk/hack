@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# USAGE
+#
+#   analyze-container-auth-json /path/to/auth.json
+#
+authfile="$1"
+IFS='' read -r -d '' validate_script << EOF
+if podman login --authfile '${authfile}' '{}' &> /dev/null
+then
+	echo '  {"valid": true, "analysis": {"host": "{}"}}'
+else
+	echo '  {"valid": false, "analysis": {"host": "{}"}}'
+fi
+EOF
+
+cat "${authfile}" \
+	| jq -r '.auths | keys | .[]' \
+	| xargs -I '{}' bash -c "${validate_script}" \
+	| jq
