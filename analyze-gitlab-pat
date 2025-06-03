@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+import json
+import sys
+import os
+import requests
+from http import HTTPStatus
+
+__doc__ = f"""
+USAGE
+    {os.path.basename(__file__)} <gitlab_url> <token>
+
+DESCRIPTION
+    Validates a GitLab Access Token (PAT) and retrieves its details,
+    including scopes, user information, and active status.
+    <gitlab_url> should be the full base URL of the GitLab instance
+    (e.g., https://gitlab.com or https://gitlab.yourcompany.com).
+    <token> is the GitLab PAT, typically starting with "glpat-".
+"""
+
+def analize(gitlab_url, token):
+    headers = {"Authorization": f"Bearer {token}"}
+    cleaned_gitlab_url = gitlab_url.rstrip('/')
+    base_api_url = f"{cleaned_gitlab_url}/api/v4"
+    token_self_url = f"{base_api_url}/personal_access_tokens/self"
+
+    results = {
+        "valid": False,
+        "analysis": {},
+    }
+
+    try:
+        resp = requests.get(token_self_url, headers=headers, timeout=10)
+        results["analysis"]["status_code"] = resp.status_code
+        try:
+            results["analysis"]["status"] = HTTPStatus(resp.status_code).phrase
+        except ValueError:
+            results["analysis"]["status"] = "Unknown"
+
+        if resp.status_code == 200:
+            token_details = resp.json()
+            results["analysis"]["token_details"] = token_details
+            if token_details.get("active", False):
+                results["valid"] = True  # Token is active and info retrieved
+                user_id = token_details.get("user_id")
+                if user_id:
+                    user_info_url = f"{base_api_url}/users/{user_id}"
+                    user_resp = requests.get(user_info_url, headers=headers, timeout=10)
+                    if user_resp.status_code == 200:
+                        results["analysis"]["user"] = user_resp.json()
+                    else:
+                        user_error_text = user_resp.text[:100] if user_resp.text else ""
+                        results["analysis"]["user_fetch_error"] = f"Failed to fetch user details: {user_resp.status_code} - {user_error_text}"
+            else:
+                results["valid"] = False # Token is explicitly inactive
+                results["analysis"]["message"] = "Token is inactive."
+
+        elif resp.status_code == 401:  # Unauthorized
+            results["valid"] = False
+            results["analysis"]["message"] = "Token is invalid, expired, or lacks permissions for self-inspection."
+        else:  # Other HTTP errors
+            results["valid"] = False
+            raw = resp.text
+            if len(raw) > 128:
+                raw = raw[:125] + "..."
+            results["analysis"]["raw_error_response"] = raw
+            results["error"] = {
+                "message": "Unexpected API response",
+                "code": resp.status_code,
+            }
+
+    except requests.exceptions.Timeout:
+        results["valid"] = False
+        results["error"] = {"message": "Request timed out after 10 seconds."}
+    except requests.exceptions.RequestException as e:
+        results["valid"] = False
+        results["error"] = {"message": f"Request failed: {str(e)}"}
+
+    return results
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print(__doc__, file=sys.stderr)
+        sys.exit(1)
+
+    gitlab_url_arg = sys.argv[1]
+    token_arg = sys.argv[2]
+
+    # Basic validation for gitlab_url_arg
+    if not (gitlab_url_arg.startswith("http://") or gitlab_url_arg.startswith("https://")):
+        print("Error: <gitlab_url> must start with http:// or https://", file=sys.stderr)
+        print(__doc__, file=sys.stderr)
+        sys.exit(1)
+
+    output = analize(gitlab_url_arg, token_arg)
+    print(json.dumps(output, indent=2))
