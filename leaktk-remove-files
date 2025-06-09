@@ -5,11 +5,11 @@ NAME
     leaktk-remove-files
 
 USAGE
-    leaktk-scanner --kind Files --resource . | leakkt-remove-files .
+    leaktk scan --kind Files --resource . | leakkt-remove-files .
 
 DESCRIPTION
 
-    Removes files found in leaktk-scanner --kind Files scans
+    Removes files found in leaktk file scans scans
 
 OPTIONS
 
