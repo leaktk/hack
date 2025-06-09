@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+import os
+import sys
+import requests
+import json
+import jwt
+import time
+from datetime import datetime, timedelta, UTC
+
+
+def analyze(app_id, client_id, client_secret, private_key):
+    results = {"valid": False, "analysis": {}}
+
+    try:
+        # Generate a JWT for GitHub App authentication
+        now = datetime.now(UTC)
+        payload = {
+            "iat": int(now.timestamp()) - 60,
+            "exp": int((now + timedelta(minutes=10)).timestamp()),
+            "iss": app_id,
+        }
+        encoded_jwt = jwt.encode(payload, private_key, algorithm="RS256")
+
+        headers = {
+            "Authorization": f"Bearer {encoded_jwt}",
+            "Accept": "application/vnd.github.v3+json",
+        }
+
+        # Verify the App's identity and permissions
+        response = requests.get("https://api.github.com/app", headers=headers)
+        if response.status_code == 200:
+            app_info = response.json()
+            results["valid"] = True
+            results["analysis"]["app_name"] = app_info.get("name")
+            results["analysis"]["app_description"] = app_info.get("description")
+            results["analysis"]["app_created_at"] = app_info.get("created_at")
+            results["analysis"]["app_updated_at"] = app_info.get("updated_at")
+            results["analysis"]["app_slug"] = app_info.get("slug")
+            results["analysis"]["public_url"] = app_info.get("external_url")
+            results["analysis"]["permissions"] = app_info.get("permissions")
+            results["analysis"]["events"] = app_info.get("events")
+            results["analysis"]["installations_count"] = int(
+                app_info.get("installations_count")
+            )
+            results["analysis"]["owner"] = app_info.get("owner", {}).get("login")
+
+            installations_response = requests.get(
+                "https://api.github.com/app/installations", headers=headers
+            )
+            if installations_response.status_code == 200:
+                installations = installations_response.json()
+                results["analysis"]["installations"] = [
+                    {
+                        "id": installation.get("id"),
+                        "account_login": installation.get("account", {}).get("login"),
+                        "account_type": installation.get("account", {}).get("type"),
+                        "target_type": installation.get("target_type"),
+                        "repository_selection": installation.get(
+                            "repository_selection"
+                        ),
+                    }
+                    for installation in installations
+                ]
+            else:
+                results["analysis"][
+                    "installations_status_code"
+                ] = installations_response.status_code
+                results["analysis"]["installations_error"] = (
+                    installations_response.text[:128] + "..."
+                    if len(installations_response.text) > 128
+                    else installations_response.text
+                )
+
+        else:
+            results["analysis"]["status_code"] = response.status_code
+            results["analysis"]["error"] = (
+                response.text[:128] + "..."
+                if len(response.text) > 128
+                else response.text
+            )
+
+    except Exception as e:
+        results["error"] = f"An error occurred: {e}"
+
+    return results
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 5:
+        print(
+            f"USAGE:\n\t{os.path.basename(sys.argv[0])} <app-id> <client-id> <client-secret> <private-key-path>"
+        )
+        sys.exit(1)
+
+    app_id = sys.argv[1]
+    client_id = sys.argv[2]
+    client_secret = sys.argv[3]
+    private_key_path = sys.argv[4]
+
+    try:
+        with open(private_key_path, "r") as f:
+            private_key = f.read()
+    except FileNotFoundError:
+        print(f"Error: Private key file not found at {private_key_path}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error reading private key file: {e}")
+        sys.exit(1)
+
+    analysis_results = analyze(app_id, client_id, client_secret, private_key)
+    print(json.dumps(analysis_results, indent=2))
