@@ -4,10 +4,10 @@ set -euo pipefail
 rm -rf data
 mkdir -p data/{images,texts}
 
-ffmpeg -i "$1" -vf fps=1 data/images/second-%04d.png >&2
+ffmpeg -i "$2" -vf fps=1 data/images/second-%04d.png >&2
 
 for img in data/images/*; do
     tesseract "$img" "data/texts/$(basename "$img" .png)" -l eng >&2
 done
 
-leaktk scan --kind Files data/texts
+rg "$1" data/texts
