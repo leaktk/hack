@@ -19,7 +19,7 @@ def analyze(access_token):
             headers=headers,
             timeout=5,
             json={
-                "query": "query { currentUser { username email displayName siteAdmin namespaceName viewerCanAdminister viewerCanChangeUsername } }",
+                "query": "query { currentUser { username email displayName siteAdmin namespaceName viewerCanAdminister viewerCanChangeUsername createdAt updatedAt } }",
             },
         )
         results["analysis"]["status_code"] = resp.status_code
