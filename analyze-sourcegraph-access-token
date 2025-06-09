@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+import json
+import os
+import requests
+import sys
+
+
+def analyze(access_token):
+    headers = {"Authorization": f"token {access_token}"}
+    results = {
+        "valid": False,
+        "analysis": {},
+    }
+
+    try:
+        # Attempt to access a user-related endpoint, e.g., current user info
+        resp = requests.post(
+            "https://sourcegraph.com/.api/graphql",
+            headers=headers,
+            timeout=5,
+            json={
+                "query": "query { currentUser { username email displayName siteAdmin namespaceName viewerCanAdminister viewerCanChangeUsername } }",
+            },
+        )
+        results["analysis"]["status_code"] = resp.status_code
+
+        if resp.status_code == 200:
+            user_info = resp.json()["data"]["currentUser"]
+            results["valid"] = True
+            results["analysis"]["user"] = user_info
+        elif resp.status_code == 401:
+            results["valid"] = False
+            results["analysis"]["message"] = "Unauthorized: Invalid or expired token."
+        else:
+            results["analysis"][
+                "message"
+            ] = f"Unexpected status code: {resp.status_code}"
+            results["analysis"]["response_text"] = resp.text[
+                :256
+            ]  # Limit response size
+
+    except requests.exceptions.RequestException as e:
+        results["analysis"]["error"] = f"Request failed: {e}"
+
+    return results
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"USAGE:\n\t{os.path.basename(sys.argv[0])}<access-token>")
+        sys.exit(1)
+
+    token = sys.argv[1]
+    analysis_results = analyze(token)
+    print(json.dumps(analysis_results, indent=2))
