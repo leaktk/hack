@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+rm -rf data
+mkdir -p data/{images,texts}
+
+ffmpeg -i "$1" -vf fps=1 data/images/frame%04d.png
+
+for img in data/images/*; do
+    tesseract "$img" "data/texts/$(basename "$img" .png).txt" -l eng
+done
+
+leaktk scan --kind Files data/texts
