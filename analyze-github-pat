@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+import sys
+import json
+import requests
+
+def analize(token):
+    """
+    Checks the validity of a GitHub Personal Access Token and retrieves its scopes.
+    """
+    results = {
+        "valid": False,
+        "analysis": {}
+    }
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+        "Authorization": f"Bearer {token}"
+    }
+
+    try:
+        # The /user endpoint is a simple way to check the token's validity
+        # The response headers will contain the token's scopes.
+        resp = requests.get("https://api.github.com/user", headers=headers)
+        results["analysis"]["status_code"] = resp.status_code
+
+        if resp.status_code == 200:
+            results["valid"] = True
+            results["analysis"]["user"] = resp.json()
+            # The X-OAuth-Scopes header lists the permissions of the token
+            if "X-OAuth-Scopes" in resp.headers:
+                results["analysis"]["scopes"] = resp.headers["X-OAuth-Scopes"].split(', ')
+            else:
+                 results["analysis"]["scopes"] = ["(no scopes)"]
+        elif resp.status_code == 401:
+            # Unauthorized, meaning the token is invalid or expired
+            results["valid"] = False
+            results["analysis"]["message"] = "Invalid or expired token."
+        else:
+            # Handle other potential HTTP errors
+            results["analysis"]["error"] = f"Unexpected status code: {resp.status_code}"
+            results["analysis"]["raw"] = resp.text[:128]
+
+    except requests.exceptions.RequestException as e:
+        results["analysis"]["error"] = f"Request failed: {e}"
+
+    return results
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"USAGE\n\t{sys.argv[0]} <github-pat>", file=sys.stderr)
+        sys.exit(1)
+
+    result = analize(sys.argv[1])
+    print(json.dumps(result, indent=2))
