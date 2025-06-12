@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+org="$1"
+
+gh api --paginate "orgs/${org}/repos" --jq '.[].name' \
+	| xargs -P 10 -I '{repo}' \
+		git clone --mirror "git@github.com:${org}/{repo}.git" "${org}/{repo}.git"
