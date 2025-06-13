@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+import sys
+import json
+import requests
+
+def analize(project_api_key):
+    headers = {
+        "Authorization": f"Bearer {project_api_key}"
+    }
+
+    for api_host in ('us.i.posthog.com', 'us.posthog.com', 'eu.i.posthog.com', 'eu.posthog.com'):
+        # The 'projects/@current' endpoint is a good way to check the key's validity
+        # and get basic project information.
+        url = f"https://{api_host}/api/projects/@current/"
+
+        try:
+            resp = requests.get(url, headers=headers)
+
+            if resp.status_code in [200, 401, 403]:
+                yield {
+                    "valid": resp.status_code == 200,
+                    "analysis": {
+                        "host": api_host,
+                        "result": resp.json(),
+                    }
+                }
+            else:
+                yield {
+                    "valid": False,
+                    "analysis": {
+                        "host": api_host,
+                        "error": "Unexpected status code",
+                        "status_code": resp.status_code,
+                        "response": resp.text[:200]
+                    }
+                }
+
+        except requests.exceptions.RequestException as e:
+            yield {
+                "valid": False,
+                "analysis": {
+                    "host": api_host,
+                    "error": str(e),
+                }
+            }
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <project_api_key>", file=sys.stderr)
+        sys.exit(1)
+
+    results = analize(sys.argv[1])
+    print(json.dumps(list(results), indent=2))
