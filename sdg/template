@@ -1,0 +1,35 @@
+#!/usr/bin/python3
+
+import os
+import sys
+
+__doc__ = f"""
+USAGE
+    {os.path.basename(sys.argv[0])} [OPTIONS]
+
+OPTIONS
+    --help              show this help text
+"""
+
+
+def main(args):
+    flags = {}
+    pos_args = []
+
+    if "--help" in args:
+        print(__doc__)
+        return 0
+
+    for arg in args:
+        if arg.startswith("--"):
+            key, value = arg[2:].split("=", 1)
+            flags[key] = value
+        else:
+            pos_arg.append(arg)
+
+    # INSERT CODE HERE
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

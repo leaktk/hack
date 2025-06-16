@@ -1,0 +1,47 @@
+#!/usr/bin/python3
+
+import os
+import sys
+import secrets
+
+__doc__ = f"""
+USAGE
+    {os.path.basename(sys.argv[0])} [OPTIONS]
+
+OPTIONS
+    --help              show this help text
+    --local=1           generate a sgp_local token
+    --count=n           generate this many tokens (default 1)
+"""
+
+
+def main(args):
+    flags = {}
+    pos_args = []
+
+    if "--help" in args or len(pos_args):
+        print(__doc__)
+        return 0
+
+    for arg in args:
+        if arg.startswith("--"):
+            key, value = arg[2:].split("=", 1)
+            flags[key] = value
+        else:
+            pos_arg.append(arg)
+
+    prefix = "sgp_"
+
+    if int(flags.get("local", 0)):
+        prefix += "local_"
+
+    count = int(flags.get("count", 1))
+    for _ in range(count):
+        # generate 20 hex encoded random bytes (total len = len(prefix) + 40)
+        print(prefix + secrets.token_hex(20))
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
