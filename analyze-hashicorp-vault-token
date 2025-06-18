@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+import sys
+import json
+import requests
+
+
+def analize(vault_addr, vault_token):
+    """Checks the validity of a HashiCorp Vault token."""
+    results = {
+        "valid": False,
+        "analysis": {},
+    }
+    headers = {"X-Vault-Token": vault_token}
+    url = f"{vault_addr}/v1/auth/token/lookup-self"
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=5)
+        if resp.status_code == 200:
+            results["valid"] = True
+            results["analysis"] = resp.json()["data"]
+        elif resp.status_code == 403:
+            results["analysis"]["error"] = "Invalid or expired token."
+        else:
+            results["analysis"]["error"] = f"Unexpected status code: {resp.status_code}"
+            results["analysis"]["body"] = resp.text
+
+    except requests.exceptions.RequestException as e:
+        results["analysis"]["error"] = f"Request failed: {e}"
+
+    return results
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} <vault_addr> <vault_token>", file=sys.stderr)
+        sys.exit(1)
+
+    vault_addr = sys.argv[1]
+    vault_token = sys.argv[2]
+    result = analize(vault_addr, vault_token)
+    print(json.dumps(result, indent=2))
