@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+import sys
+import json
+import requests
+
+
+def analize(mta_url, realm, client_id, client_secret):
+    """
+    Attempts to get an OIDC token using the client credentials flow.
+    """
+    results = {
+        "valid": False,
+        "analysis": {},
+    }
+
+    # Standard OIDC/Keycloak token endpoint path
+    token_url = (
+        f"{mta_url.rstrip('/')}/auth/realms/{realm}/protocol/openid-connect/token"
+    )
+
+    payload = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+    }
+
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+
+    try:
+        resp = requests.post(token_url, headers=headers, data=payload)
+        results["analysis"]["status_code"] = resp.status_code
+
+        if resp.status_code == 200:
+            results["valid"] = True
+            try:
+                # Add some info from the token if possible
+                token_data = resp.json()
+                results["analysis"]["access_token_present"] = (
+                    "access_token" in token_data
+                )
+                results["analysis"]["expires_in"] = token_data.get("expires_in")
+                results["analysis"]["scope"] = token_data.get("scope")
+            except json.JSONDecodeError:
+                results["analysis"][
+                    "raw"
+                ] = "Successfully retrieved token, but response was not valid JSON."
+
+        elif resp.status_code in [400, 401]:
+            # 400 for bad request (e.g., invalid client) or 401 for bad secret
+            results["valid"] = False
+            try:
+                results["analysis"]["error_details"] = resp.json()
+            except json.JSONDecodeError:
+                results["analysis"]["raw"] = resp.text[:256]
+
+        else:
+            results["analysis"]["error"] = f"Unexpected status code: {resp.status_code}"
+            results["analysis"]["raw"] = resp.text[:256]
+
+    except requests.exceptions.RequestException as e:
+        results["error"] = f"Request failed: {e}"
+
+    return results
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 5:
+        print(f"USAGE: {sys.argv[0]} <mta_url> <realm> <client_id> <client_secret>")
+        sys.exit(1)
+
+    url, realm, client_id, secret = sys.argv[1:5]
+    result = analize(url, realm, client_id, secret)
+    print(json.dumps(result, indent=2))
