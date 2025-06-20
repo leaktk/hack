@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+from http import HTTPStatus
+import requests
+
+__doc__ = f"""
+USAGE
+    {os.path.basename(__file__)} <host> <api-key>
+
+DESCRIPTION
+    This script checks if a vLLM API key is valid by attempting to list the
+    models available on the specified host.
+"""
+
+def error(message, **kwargs):
+    return {"message": message, **kwargs}
+
+def analize(host, api_key):
+    headers = {"Authorization": f"Bearer {api_key}"}
+    results = {
+        "valid": False,
+        "analysis": {},
+    }
+
+    # Ensure the host has a scheme
+    if not host.startswith("http://") and not host.startswith("https://"):
+        host = "https://" + host
+
+    try:
+        resp = requests.get(f"{host}/v1/models", headers=headers)
+        results["analysis"]["status_code"] = resp.status_code
+
+        try:
+            results["analysis"]["status"] = HTTPStatus(resp.status_code).phrase
+        except ValueError:
+            results["analysis"]["status"] = "Unknown"
+
+        if resp.status_code == 200:
+            results["valid"] = True
+            try:
+                results["analysis"]["models"] = resp.json()
+            except json.JSONDecodeError:
+                results["analysis"]["raw"] = resp.text
+                results["error"] = error("failed to decode JSON response")
+
+        elif resp.status_code == 401:
+            # Unauthorized, but the endpoint is valid.
+            # We can consider the key as "valid" in the sense that it's recognized
+            # but unauthorized.
+            results["valid"] = True
+        else:
+            raw = resp.text
+            if len(raw) > 128:
+                raw = raw[:125] + "..."
+
+            results["analysis"]["raw"] = raw
+            results["error"] = error(
+                "unexpected response",
+                code=resp.status_code,
+            )
+    except requests.exceptions.RequestException as e:
+        results["error"] = error(f"request failed: {e}")
+
+    return results
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print(__doc__, file=sys.stderr)
+        sys.exit(1)
+
+    host_arg = sys.argv[1]
+    api_key_arg = sys.argv[2]
+
+    analysis_result = analize(host_arg, api_key_arg)
+    print(json.dumps(analysis_result, indent=2))
