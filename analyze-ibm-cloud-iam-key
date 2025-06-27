@@ -5,6 +5,30 @@ import requests
 import base64
 
 
+def get_iam_policies(access_token, account_id, iam_id):
+    """
+    Retrieves IAM policies for a given identity.
+    """
+    policies = []
+    url = (
+        f"https://iam.cloud.ibm.com/v1/policies?account_id={account_id}&iam_id={iam_id}"
+    )
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        policies = response.json().get("policies", [])
+    except requests.exceptions.HTTPError as err:
+        print(f"Error fetching policies: {err}", file=sys.stderr)
+    except requests.exceptions.RequestException as err:
+        print(f"Request failed: {err}", file=sys.stderr)
+
+    return policies
+
+
 def analize(api_key):
     """
     Analyzes an IBM Cloud IAM API key to check its validity.
@@ -25,17 +49,27 @@ def analize(api_key):
         access_token = token_data.get("access_token")
 
         at_parts = str(access_token).split(".")
+        payload = None
         if len(at_parts) == 3:
-            payload = at_parts[1] + "=" * (4 - (len(at_parts[1]) % 4))
             try:
-                access_token = json.loads(base64.urlsafe_b64decode(payload).decode())
-            except Exception:
+                payload = at_parts[1] + "=" * (4 - (len(at_parts[1]) % 4))
+                payload = json.loads(base64.urlsafe_b64decode(payload).decode())
+
+                iam_id = payload.get("iam_id")
+                account_id = payload.get("account", {}).get("bss")
+                if iam_id and account_id:
+                    policies = get_iam_policies(access_token, account_id, iam_id)
+                    results["analysis"]["policies"] = policies
+                else:
+                    results["analysis"]["error"] = "token missing iam_id or account_id"
+            except Exception as e:
+                print(e)
                 pass
 
         results["valid"] = True
-        results["analysis"] = {
+        results["analysis"] |= {
             "message": "Successfully exchanged API key for an IAM token.",
-            "access_token": access_token,
+            "access_token": payload or access_token,
             "refresh_token": token_data.get("refresh_token"),
             "token_type": token_data.get("token_type"),
             "expires_in": token_data.get("expires_in"),
@@ -44,13 +78,9 @@ def analize(api_key):
         }
 
     except requests.exceptions.HTTPError as err:
-        results["analysis"][
-            "error"
-        ] = f"HTTP error: {err.response.status_code} {err.response.reason}"
+        results["analysis"]["error"] = f"HTTP error: {err.response.status_code} {err.response.reason}"
         if err.response.status_code == 401:
-            results["analysis"][
-                "message"
-            ] = "The API key is likely invalid or has been revoked."
+            results["analysis"]["message"] = "The API key is likely invalid or has been revoked."
         else:
             results["analysis"]["details"] = err.response.text
     except requests.exceptions.RequestException as err:
