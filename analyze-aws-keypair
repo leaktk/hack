@@ -24,7 +24,7 @@ def decode_key(access_key_id):
     return (z & mask) >> 7
 
 
-def analize(access_key_id, secret_access_key):
+def analyze(access_key_id, secret_access_key):
     """
     Analyzes an AWS keypair to validate it and check its permissions.
     """
@@ -107,5 +107,5 @@ if __name__ == "__main__":
     access_key = sys.argv[1]
     secret_key = sys.argv[2]
 
-    analysis_results = analize(access_key, secret_key)
+    analysis_results = analyze(access_key, secret_key)
     print(json.dumps(analysis_results, indent=2))

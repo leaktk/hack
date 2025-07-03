@@ -17,9 +17,10 @@ DESCRIPTION
     <token> is the GitLab PAT, typically starting with "glpat-".
 """
 
-def analize(gitlab_url, token):
+
+def analyze(gitlab_url, token):
     headers = {"Authorization": f"Bearer {token}"}
-    cleaned_gitlab_url = gitlab_url.rstrip('/')
+    cleaned_gitlab_url = gitlab_url.rstrip("/")
     base_api_url = f"{cleaned_gitlab_url}/api/v4"
     token_self_url = f"{base_api_url}/personal_access_tokens/self"
 
@@ -49,14 +50,18 @@ def analize(gitlab_url, token):
                         results["analysis"]["user"] = user_resp.json()
                     else:
                         user_error_text = user_resp.text[:100] if user_resp.text else ""
-                        results["analysis"]["user_fetch_error"] = f"Failed to fetch user details: {user_resp.status_code} - {user_error_text}"
+                        results["analysis"][
+                            "user_fetch_error"
+                        ] = f"Failed to fetch user details: {user_resp.status_code} - {user_error_text}"
             else:
-                results["valid"] = False # Token is explicitly inactive
+                results["valid"] = False  # Token is explicitly inactive
                 results["analysis"]["message"] = "Token is inactive."
 
         elif resp.status_code == 401:  # Unauthorized
             results["valid"] = False
-            results["analysis"]["message"] = "Token is invalid, expired, or lacks permissions for self-inspection."
+            results["analysis"][
+                "message"
+            ] = "Token is invalid, expired, or lacks permissions for self-inspection."
         else:  # Other HTTP errors
             results["valid"] = False
             raw = resp.text
@@ -77,6 +82,7 @@ def analize(gitlab_url, token):
 
     return results
 
+
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print(__doc__, file=sys.stderr)
@@ -86,10 +92,14 @@ if __name__ == "__main__":
     token_arg = sys.argv[2]
 
     # Basic validation for gitlab_url_arg
-    if not (gitlab_url_arg.startswith("http://") or gitlab_url_arg.startswith("https://")):
-        print("Error: <gitlab_url> must start with http:// or https://", file=sys.stderr)
+    if not (
+        gitlab_url_arg.startswith("http://") or gitlab_url_arg.startswith("https://")
+    ):
+        print(
+            "Error: <gitlab_url> must start with http:// or https://", file=sys.stderr
+        )
         print(__doc__, file=sys.stderr)
         sys.exit(1)
 
-    output = analize(gitlab_url_arg, token_arg)
+    output = analyze(gitlab_url_arg, token_arg)
     print(json.dumps(output, indent=2))

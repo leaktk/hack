@@ -34,4 +34,4 @@ with open(path) as file:
             count += 1
 
 print("For", count, "out of", total, f"(1 - (({total} - {count})/{total})^{tries}):\n")
-print(1 - pow((total - count)/total, tries))
+print(1 - pow((total - count) / total, tries))

@@ -41,7 +41,9 @@ def main():
                 try:
                     os.unlink(path)
                 except Exception as e:
-                    print(f"could not remove file: path={path}#L{line} description={description} error={e}")
+                    print(
+                        f"could not remove file: path={path}#L{line} description={description} error={e}"
+                    )
                     exit_status = 2
 
     return exit_status

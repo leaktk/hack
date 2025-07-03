@@ -48,13 +48,14 @@ import re
 # Regex to parse a location like L<line>[C<col>]
 LOC_PAT = re.compile(r"L(\d+)(?:C(\d+))?")
 
+
 def parse_one_range_item(expr_item_str, lines_meta, file_total_size):
     """
     Parses a single range expression (e.g., "L1C1-L2C5" or "L3") and returns
     the absolute start and end offsets in the file for the content to be redacted.
     Offsets are 0-indexed and exclusive for the end offset.
     """
-    parts = expr_item_str.split('-', 1)
+    parts = expr_item_str.split("-", 1)
     start_loc_str = parts[0]
     end_loc_str = parts[1] if len(parts) > 1 else None
 
@@ -67,11 +68,13 @@ def parse_one_range_item(expr_item_str, lines_meta, file_total_size):
 
     # Handle empty file case first
     if not lines_meta:
-        if s_line_num == 1: # L1 or L1C<n> on empty file
+        if s_line_num == 1:  # L1 or L1C<n> on empty file
             if s_col_num:
-                raise IndexError(f"Start column {s_col_num} specified for line 1 of an empty file.")
-            return 0, 0 # L1 on empty file means redact nothing
-        else: # L<n> where n > 1 on empty file
+                raise IndexError(
+                    f"Start column {s_col_num} specified for line 1 of an empty file."
+                )
+            return 0, 0  # L1 on empty file means redact nothing
+        else:  # L<n> where n > 1 on empty file
             raise IndexError(f"Start line {s_line_num} out of bounds for empty file.")
 
     if not (1 <= s_line_num <= len(lines_meta)):
@@ -79,18 +82,22 @@ def parse_one_range_item(expr_item_str, lines_meta, file_total_size):
 
     s_line_meta = lines_meta[s_line_num - 1]
     # Default start_offset is the beginning of the line's content
-    start_offset = s_line_meta['start']
+    start_offset = s_line_meta["start"]
 
     if s_col_num:
-        if s_line_meta['content_len'] == 0:
-            raise IndexError(f"Start column {s_col_num} specified for line {s_line_num}, which has no content.")
-        s_char_idx = s_col_num - 1 # Convert 1-based column to 0-based index
-        if not (0 <= s_char_idx < s_line_meta['content_len']):
-            raise IndexError(f"Start column {s_col_num} on line {s_line_num} out of bounds (content length {s_line_meta['content_len']})")
+        if s_line_meta["content_len"] == 0:
+            raise IndexError(
+                f"Start column {s_col_num} specified for line {s_line_num}, which has no content."
+            )
+        s_char_idx = s_col_num - 1  # Convert 1-based column to 0-based index
+        if not (0 <= s_char_idx < s_line_meta["content_len"]):
+            raise IndexError(
+                f"Start column {s_col_num} on line {s_line_num} out of bounds (content length {s_line_meta['content_len']})"
+            )
         start_offset += s_char_idx
 
     # Default end_offset is the end of content on the start line (exclusive)
-    end_offset = s_line_meta['start'] + s_line_meta['content_len']
+    end_offset = s_line_meta["start"] + s_line_meta["content_len"]
 
     if end_loc_str:
         m_end = LOC_PAT.fullmatch(end_loc_str)
@@ -100,31 +107,44 @@ def parse_one_range_item(expr_item_str, lines_meta, file_total_size):
         e_col_num = int(m_end.group(2)) if m_end.group(2) else None
 
         if not (1 <= e_line_num <= len(lines_meta)):
-            raise IndexError(f"End line {e_line_num} out of bounds (1-{len(lines_meta)})")
+            raise IndexError(
+                f"End line {e_line_num} out of bounds (1-{len(lines_meta)})"
+            )
         e_line_meta = lines_meta[e_line_num - 1]
 
         if e_col_num:
-            if e_line_meta['content_len'] == 0:
-                 raise IndexError(f"End column {e_col_num} specified for line {e_line_num}, which has no content.")
-            e_char_idx = e_col_num - 1 # 0-indexed
-            if not (0 <= e_char_idx < e_line_meta['content_len']):
-                raise IndexError(f"End column {e_col_num} on line {e_line_num} out of bounds (content length {e_line_meta['content_len']})")
+            if e_line_meta["content_len"] == 0:
+                raise IndexError(
+                    f"End column {e_col_num} specified for line {e_line_num}, which has no content."
+                )
+            e_char_idx = e_col_num - 1  # 0-indexed
+            if not (0 <= e_char_idx < e_line_meta["content_len"]):
+                raise IndexError(
+                    f"End column {e_col_num} on line {e_line_num} out of bounds (content length {e_line_meta['content_len']})"
+                )
             # end_offset is exclusive: offset of the character *after* the last one to redact
-            end_offset = e_line_meta['start'] + e_char_idx + 1
+            end_offset = e_line_meta["start"] + e_char_idx + 1
         else:
             # End of range is a whole line (e.g., L1C2-L6)
             # Redact up to the end of the content of the end line.
-            end_offset = e_line_meta['start'] + e_line_meta['content_len']
+            end_offset = e_line_meta["start"] + e_line_meta["content_len"]
 
     # If no end_loc_str, end_offset remains as calculated (end of content on start_line)
     if start_offset > end_offset:
-         raise ValueError(f"Calculated range is invalid: start_offset {start_offset} > end_offset {end_offset} for '{expr_item_str}'")
+        raise ValueError(
+            f"Calculated range is invalid: start_offset {start_offset} > end_offset {end_offset} for '{expr_item_str}'"
+        )
 
     # Final boundary check against overall file size
-    if not (0 <= start_offset <= file_total_size and 0 <= end_offset <= file_total_size):
-        raise IndexError(f"Calculated offsets [{start_offset}-{end_offset}) are outside file boundaries [0-{file_total_size}) for '{expr_item_str}'")
+    if not (
+        0 <= start_offset <= file_total_size and 0 <= end_offset <= file_total_size
+    ):
+        raise IndexError(
+            f"Calculated offsets [{start_offset}-{end_offset}) are outside file boundaries [0-{file_total_size}) for '{expr_item_str}'"
+        )
 
     return start_offset, end_offset
+
 
 def redact_in_place(file_path, range_expr_str):
     """
@@ -135,26 +155,28 @@ def redact_in_place(file_path, range_expr_str):
     current_offset = 0
     try:
         # First pass: Get metadata about each line (start, content length, newline type)
-        with open(file_path, 'rb') as f_scan:
-            for line_bytes_from_file in f_scan: # Iterating this way includes newlines
+        with open(file_path, "rb") as f_scan:
+            for line_bytes_from_file in f_scan:  # Iterating this way includes newlines
                 full_line_len = len(line_bytes_from_file)
                 content_line_len = full_line_len
-                newline_b = b''
+                newline_b = b""
 
-                if line_bytes_from_file.endswith(b'\r\n'):
+                if line_bytes_from_file.endswith(b"\r\n"):
                     content_line_len -= 2
-                    newline_b = b'\r\n'
-                elif line_bytes_from_file.endswith(b'\n'):
+                    newline_b = b"\r\n"
+                elif line_bytes_from_file.endswith(b"\n"):
                     content_line_len -= 1
-                    newline_b = b'\n'
+                    newline_b = b"\n"
                 # If no specific newline, it's the last line without one, or binary data.
 
-                lines_meta.append({
-                    'start': current_offset,          # Absolute start offset of the line in the file
-                    'content_len': content_line_len,  # Length of the line's actual content (excluding newline)
-                    'full_len': full_line_len,        # Full length of the line read (including newline)
-                    'newline_bytes': newline_b        # The newline characters themselves
-                })
+                lines_meta.append(
+                    {
+                        "start": current_offset,  # Absolute start offset of the line in the file
+                        "content_len": content_line_len,  # Length of the line's actual content (excluding newline)
+                        "full_len": full_line_len,  # Full length of the line read (including newline)
+                        "newline_bytes": newline_b,  # The newline characters themselves
+                    }
+                )
                 current_offset += full_line_len
     except FileNotFoundError:
         print(f"Error: File not found: {file_path}", file=sys.stderr)
@@ -164,19 +186,21 @@ def redact_in_place(file_path, range_expr_str):
 
     # Handle case: file has content but no newlines (effectively a single long line)
     if not lines_meta and file_total_size > 0:
-        lines_meta.append({
-            'start': 0,
-            'content_len': file_total_size,
-            'full_len': file_total_size,
-            'newline_bytes': b''
-        })
+        lines_meta.append(
+            {
+                "start": 0,
+                "content_len": file_total_size,
+                "full_len": file_total_size,
+                "newline_bytes": b"",
+            }
+        )
 
-    individual_exprs = range_expr_str.split(',')
-    redaction_char = b'X'
+    individual_exprs = range_expr_str.split(",")
+    redaction_char = b"X"
 
-    current_expr_item_for_error_reporting = "" # For clearer error messages
+    current_expr_item_for_error_reporting = ""  # For clearer error messages
     try:
-        with open(file_path, 'r+b') as f: # Open for reading and writing in binary mode
+        with open(file_path, "r+b") as f:  # Open for reading and writing in binary mode
             for expr_item_str in individual_exprs:
                 current_expr_item_for_error_reporting = expr_item_str.strip()
                 if not current_expr_item_for_error_reporting:
@@ -196,7 +220,7 @@ def redact_in_place(file_path, range_expr_str):
                 f.seek(start_abs_offset)
                 original_segment_data = f.read(end_abs_offset - start_abs_offset)
 
-                bytes_to_write = bytearray() # Build the new segment byte by byte
+                bytes_to_write = bytearray()  # Build the new segment byte by byte
 
                 for i in range(len(original_segment_data)):
                     # Determine the global offset of the current byte we are inspecting
@@ -206,15 +230,25 @@ def redact_in_place(file_path, range_expr_str):
                     # Check if this global offset falls into a newline part of any line
                     for line_info in lines_meta:
                         # A byte is part of a newline if it's after content_len but before full_len
-                        line_content_end_offset = line_info['start'] + line_info['content_len']
-                        line_full_end_offset = line_info['start'] + line_info['full_len'] # same as next line's start or EOF
+                        line_content_end_offset = (
+                            line_info["start"] + line_info["content_len"]
+                        )
+                        line_full_end_offset = (
+                            line_info["start"] + line_info["full_len"]
+                        )  # same as next line's start or EOF
 
-                        if line_content_end_offset <= current_byte_global_offset < line_full_end_offset:
+                        if (
+                            line_content_end_offset
+                            <= current_byte_global_offset
+                            < line_full_end_offset
+                        ):
                             is_part_of_newline = True
                             break
 
                     if is_part_of_newline:
-                        bytes_to_write.append(original_segment_data[i]) # Preserve original newline byte
+                        bytes_to_write.append(
+                            original_segment_data[i]
+                        )  # Preserve original newline byte
                     else:
                         # This byte is part of content within the redaction range
                         bytes_to_write.append(redaction_char[0])
@@ -222,14 +256,18 @@ def redact_in_place(file_path, range_expr_str):
                 # Seek back to the start of the segment and overwrite with the new bytes
                 f.seek(start_abs_offset)
                 f.write(bytes_to_write)
-                f.flush() # Flush after each successful redaction part
+                f.flush()  # Flush after each successful redaction part
 
     except (ValueError, IndexError) as e:
-        print(f"Error processing range expression '{current_expr_item_for_error_reporting}': {e}", file=sys.stderr)
+        print(
+            f"Error processing range expression '{current_expr_item_for_error_reporting}': {e}",
+            file=sys.stderr,
+        )
         sys.exit(1)
     except Exception as e:
         print(f"An unexpected error occurred: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 def main():
     if len(sys.argv) != 3:
@@ -241,6 +279,7 @@ def main():
     range_expr = sys.argv[2]
 
     redact_in_place(file_path, range_expr)
+
 
 if __name__ == "__main__":
     main()

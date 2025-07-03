@@ -4,7 +4,8 @@ import os
 import requests
 import sys
 
-def analize(token):
+
+def analyze(token):
     """
     Checks if a Mapbox access token is valid by attempting to fetch a map tile.
     """
@@ -20,7 +21,9 @@ def analize(token):
 
         if resp.status_code == 200:
             results["valid"] = True
-            results["analysis"]["details"] = "Token is active and can be used to fetch map resources."
+            results["analysis"][
+                "details"
+            ] = "Token is active and can be used to fetch map resources."
         elif resp.status_code == 401:
             results["valid"] = False
             results["analysis"]["details"] = "Token is invalid or has been revoked."
@@ -33,10 +36,13 @@ def analize(token):
 
     return results
 
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print(f"USAGE\n\t{os.path.basename(sys.argv[0])} <mapbox-token>", file=sys.stderr)
+        print(
+            f"USAGE\n\t{os.path.basename(sys.argv[0])} <mapbox-token>", file=sys.stderr
+        )
         sys.exit(1)
 
-    output = analize(sys.argv[1])
+    output = analyze(sys.argv[1])
     print(json.dumps(output, indent=2))

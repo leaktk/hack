@@ -4,6 +4,7 @@ import json
 import requests
 import urllib.parse
 
+
 def analyze_logilica_token(domain, token):
     """
     Validates a Logilica API token and domain by making a GET request
@@ -17,19 +18,19 @@ def analyze_logilica_token(domain, token):
         "measures": ["JiraIssueDetail.avgLeadTime"],
         "dimensions": [],
         "filters": [],
-        "timeDimensions": []
+        "timeDimensions": [],
     }
 
     # Convert the dictionary to a JSON string
     query_json = json.dumps(query_payload)
 
     # URL-encode the JSON string to be used as a query parameter
-    params = {'query': query_json}
+    params = {"query": query_json}
 
     headers = {
-        'X-lgca-token': token,
-        'x-lgca-domain': domain,
-        'Accept': 'application/json' # Assuming JSON response is preferred
+        "X-lgca-token": token,
+        "x-lgca-domain": domain,
+        "Accept": "application/json",  # Assuming JSON response is preferred
     }
 
     try:
@@ -40,25 +41,39 @@ def analyze_logilica_token(domain, token):
             try:
                 analysis_result["analysis"] = response.json()
             except json.JSONDecodeError:
-                analysis_result["analysis"]["message"] = "Token/Domain valid, but response was not valid JSON."
+                analysis_result["analysis"][
+                    "message"
+                ] = "Token/Domain valid, but response was not valid JSON."
             except Exception as e:
-                 analysis_result["analysis"]["message"] = f"Token/Domain valid, error parsing response: {e}"
+                analysis_result["analysis"][
+                    "message"
+                ] = f"Token/Domain valid, error parsing response: {e}"
 
         elif response.status_code in [401, 403]:
             analysis_result["valid"] = False
-            analysis_result["analysis"]["error"] = f"HTTP Status {response.status_code} - Unauthorized/Forbidden"
+            analysis_result["analysis"][
+                "error"
+            ] = f"HTTP Status {response.status_code} - Unauthorized/Forbidden"
             try:
-                 analysis_result["analysis"]["details"] = response.json() # Include error details if available
+                analysis_result["analysis"][
+                    "details"
+                ] = response.json()  # Include error details if available
             except:
-                 analysis_result["analysis"]["details"] = response.text[:200] # Log beginning of text response
+                analysis_result["analysis"]["details"] = response.text[
+                    :200
+                ]  # Log beginning of text response
 
         else:
-            analysis_result["valid"] = False # Treat unexpected codes as invalid for triage
-            analysis_result["analysis"]["error"] = f"Unexpected HTTP Status {response.status_code}"
+            analysis_result["valid"] = (
+                False  # Treat unexpected codes as invalid for triage
+            )
+            analysis_result["analysis"][
+                "error"
+            ] = f"Unexpected HTTP Status {response.status_code}"
             try:
-                 analysis_result["analysis"]["details"] = response.json()
+                analysis_result["analysis"]["details"] = response.json()
             except:
-                 analysis_result["analysis"]["details"] = response.text[:200]
+                analysis_result["analysis"]["details"] = response.text[:200]
 
     except requests.exceptions.RequestException as e:
         analysis_result["valid"] = False
@@ -68,6 +83,7 @@ def analyze_logilica_token(domain, token):
         analysis_result["analysis"]["error"] = str(e)
 
     return json.dumps(analysis_result, indent=2)
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:

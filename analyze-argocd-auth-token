@@ -5,8 +5,10 @@ import sys
 import requests
 import jwt
 
+
 def error(message, **kwargs):
     return {"message": message, **kwargs}
+
 
 def analyze(argocd_url, jwt_token):
     headers = {"Authorization": f"Bearer {jwt_token}"}
@@ -23,7 +25,10 @@ def analyze(argocd_url, jwt_token):
             # Check for expiration, even if signature isn't verified
             if "exp" in decoded_token:
                 from datetime import datetime, timezone
-                expiration_time = datetime.fromtimestamp(decoded_token["exp"], tz=timezone.utc)
+
+                expiration_time = datetime.fromtimestamp(
+                    decoded_token["exp"], tz=timezone.utc
+                )
                 current_time = datetime.now(timezone.utc)
                 results["analysis"]["expired"] = expiration_time < current_time
         except jwt.PyJWTError as e:
@@ -34,22 +39,33 @@ def analyze(argocd_url, jwt_token):
         # The /api/v1/session/current endpoint doesn't seem to exist
         # Let's try /api/v1/version for a more generic check or /api/v1/projects
         # /api/v1/projects is better as it requires authentication
-        resp = requests.get(f"{argocd_url}/api/v1/projects", headers=headers, verify=False) # verify=False for self-signed certs
+        resp = requests.get(
+            f"{argocd_url}/api/v1/projects", headers=headers, verify=False
+        )  # verify=False for self-signed certs
         results["analysis"]["status_code"] = resp.status_code
 
         if resp.status_code == 200:
             results["valid"] = True
             try:
                 projects_info = resp.json()
-                results["analysis"]["projects_count"] = len(projects_info.get("items", []))
+                results["analysis"]["projects_count"] = len(
+                    projects_info.get("items", [])
+                )
                 # Add some example project names if available
                 if projects_info.get("items"):
-                    results["analysis"]["example_projects"] = [p.get("metadata", {}).get("name") for p in projects_info["items"][:3]]
+                    results["analysis"]["example_projects"] = [
+                        p.get("metadata", {}).get("name")
+                        for p in projects_info["items"][:3]
+                    ]
             except json.JSONDecodeError:
-                results["analysis"]["response_body"] = resp.text[:256] + "..." if len(resp.text) > 256 else resp.text
-                results["error"] = error("Failed to decode JSON response from /api/v1/projects")
+                results["analysis"]["response_body"] = (
+                    resp.text[:256] + "..." if len(resp.text) > 256 else resp.text
+                )
+                results["error"] = error(
+                    "Failed to decode JSON response from /api/v1/projects"
+                )
         elif resp.status_code == 401 or resp.status_code == 403:
-            results["valid"] = False # Token might be invalid or unauthorized
+            results["valid"] = False  # Token might be invalid or unauthorized
             results["analysis"]["message"] = "Authentication failed or forbidden."
         else:
             raw = resp.text
@@ -67,10 +83,14 @@ def analyze(argocd_url, jwt_token):
 
     return results
 
+
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print(f"USAGE: {os.path.basename(__file__)} <argocd-url> <jwt-token>")
-        print("WARNING: A positive test has not been done with this script yet. May produce false negatives", file=sys.stderr)
+        print(
+            "WARNING: A positive test has not been done with this script yet. May produce false negatives",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     argocd_url = sys.argv[1]
@@ -78,4 +98,7 @@ if __name__ == "__main__":
 
     analysis_result = analyze(argocd_url, jwt_token)
     print(json.dumps(analysis_result, indent=2))
-    print("WARNING: A positive test has not been done with this script yet. May produce false negatives", file=sys.stderr)
+    print(
+        "WARNING: A positive test has not been done with this script yet. May produce false negatives",
+        file=sys.stderr,
+    )

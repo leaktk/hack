@@ -3,7 +3,7 @@ import sys
 import json
 import requests
 
-def analize(project_api_key):
+def analyze(project_api_key):
     headers = {
         "Authorization": f"Bearer {project_api_key}"
     }
@@ -49,5 +49,5 @@ if __name__ == "__main__":
         print(f"Usage: {sys.argv[0]} <project_api_key>", file=sys.stderr)
         sys.exit(1)
 
-    results = analize(sys.argv[1])
+    results = analyze(sys.argv[1])
     print(json.dumps(list(results), indent=2))

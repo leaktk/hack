@@ -79,7 +79,10 @@ def main():
     else:
         whitespace = lambda x: x
 
-    patterns = map(whitespace, (encode(target, method, pad=pad) for target in targets for pad in range(0, 3)))
+    patterns = map(
+        whitespace,
+        (encode(target, method, pad=pad) for target in targets for pad in range(0, 3)),
+    )
 
     print(f"(?:{'|'.join(patterns)})")
 

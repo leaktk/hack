@@ -4,7 +4,7 @@ import json
 import requests
 
 
-def analize(vault_addr, vault_token):
+def analyze(vault_addr, vault_token):
     """Checks the validity of a HashiCorp Vault token."""
     results = {
         "valid": False,
@@ -37,5 +37,5 @@ if __name__ == "__main__":
 
     vault_addr = sys.argv[1]
     vault_token = sys.argv[2]
-    result = analize(vault_addr, vault_token)
+    result = analyze(vault_addr, vault_token)
     print(json.dumps(result, indent=2))

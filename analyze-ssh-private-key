@@ -20,7 +20,7 @@ DESCRIPTION
 """
 
 
-def analize(key_file_path):
+def analyze(key_file_path):
     results = {
         "valid": False,
         "analysis": {"access": {}},
@@ -29,7 +29,9 @@ def analize(key_file_path):
     try:
         proc = subprocess.run(
             ["ssh-keygen", "-y", "-f", key_file_path],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         results["valid"] = None
         results["analysis"]["public_key"] = proc.stdout.strip()
@@ -72,7 +74,7 @@ def analize(key_file_path):
         "git-codecommit.me-central-1.amazonaws.com",
         "git-codecommit.sa-east-1.amazonaws.com",
         "git-codecommit.us-gov-east-1.amazonaws.com",
-        "git-codecommit.us-gov-west-1.amazonaws.com"
+        "git-codecommit.us-gov-west-1.amazonaws.com",
     ]
 
     for provider in providers:
@@ -102,12 +104,11 @@ def analize(key_file_path):
         if auth_success:
             results["valid"] = True
 
-        results["analysis"]["access"][provider] = {
-            "success": auth_success,
-            "stdout": proc.stdout.strip(),
-            "stderr": proc.stderr.strip(),
-            "exit_code": proc.returncode,
-        }
+            results["analysis"]["access"][provider] = {
+                "stdout": proc.stdout.strip(),
+                "stderr": proc.stderr.strip(),
+                "exit_code": proc.returncode,
+            }
 
     return results
 
@@ -117,5 +118,5 @@ if __name__ == "__main__":
         print(__doc__, file=sys.stderr)
         sys.exit(1)
 
-    results = analize(sys.argv[1])
+    results = analyze(sys.argv[1])
     print(json.dumps(results, indent=2))

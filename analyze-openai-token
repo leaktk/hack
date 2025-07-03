@@ -17,7 +17,9 @@ def analyze(api_key):
 
         if resp.status_code == 200:
             is_valid = True
-            result["models"] = [m["id"] for m in resp.json().get("data", []) if "id" in m]
+            result["models"] = [
+                m["id"] for m in resp.json().get("data", []) if "id" in m
+            ]
         elif resp.status_code == 401:
             result["models"] = {
                 "error": "Unauthorized - Invalid API Key for /v1/models",
