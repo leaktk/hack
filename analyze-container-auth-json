@@ -55,6 +55,7 @@ def analyze_auth_info(host, auth_info):
             auth=(username, password),
             timeout=10,
         )
+        analysis["auth_resp"] = resp.json()
     except RequestException:
         return with_error(result, "request failed")
 
