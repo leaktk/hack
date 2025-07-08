@@ -55,7 +55,7 @@ def main(download_dir: Path) -> int:
             file_path = download_dir / xxhash.xxh3_128_hexdigest(resolved_url)
             with file_path.open("wb") as file:
                 for chunk in resp.iter_content(chunk_size=1024 * 8):
-                    f.write(chunk)
+                    file.write(chunk)
         except Exception as e:
             print("failed to save file:", file_path, "url:", resolved_url, "error:", e)
             return 3
@@ -64,4 +64,4 @@ def main(download_dir: Path) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(Path(sys.args[1])))
+    sys.exit(main(Path(sys.argv[1])))

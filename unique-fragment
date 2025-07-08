@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+import random
+import sys
+
+
+def main(fragment_size):
+    lines = {line.strip() for line in sys.stdin}
+
+    for line in lines:
+        if len(line) < fragment_size:
+            raise ValueError("lines exist that are shorter than the fragment size")
+
+        for _ in range(1024):
+            random_offset = (
+                0
+                if len(line) == fragment_size
+                else random.randint(0, len(line) - fragment_size)
+            )
+            fragment = line[random_offset : random_offset + fragment_size]
+            other_lines = lines - {line}
+            if not any(fragment in l for l in other_lines):
+                print(fragment)
+                break
+        else:
+            raise ValueError("could not generate unique fragments")
+
+
+if __name__ == "__main__":
+    main(int(sys.argv[1]))
