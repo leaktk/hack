@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+import sys
+import requests
+import json
+
+
+def analyze(api_key, secret_key):
+    """
+    Analyzes FedEx API credentials by attempting to obtain an OAuth2 token.
+    """
+    api_url = "https://apis.fedex.com/oauth/token"
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    data = {
+        "grant_type": "client_credentials",
+        "client_id": api_key,
+        "client_secret": secret_key,
+    }
+
+    try:
+        response = requests.post(api_url, headers=headers, data=data)
+        response.raise_for_status()  # Raise an exception for bad status codes
+        token_info = response.json()
+
+        return {
+            "valid": True,
+            "analysis": {
+                "scope": token_info.get("scope"),
+                "expires_in": token_info.get("expires_in"),
+            },
+        }
+    except requests.exceptions.HTTPError as e:
+        return {
+            "valid": False,
+            "analysis": {
+                "error": "HTTP Error",
+                "status_code": e.response.status_code,
+                "details": e.response.json(),
+            },
+        }
+    except Exception as e:
+        return {"valid": False, "analysis": {"error": str(e)}}
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print(f"Usage:\n\t{sys.argv[0]} <api_key> <secret_key>")
+        sys.exit(1)
+
+    api_key_arg = sys.argv[1]
+    secret_key_arg = sys.argv[2]
+
+    result = analyze(api_key_arg, secret_key_arg)
+    print(json.dumps(result, indent=2))
