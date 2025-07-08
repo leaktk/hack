@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+"""
+USAGE
+    cat urls.txt | download-urls <download-dir>
+
+DESCRIPTION
+    Download URLs in a provider aware way. For example if you give it a GitHub
+    URL for something in the UI, it will pull the raw version of it, etc. If it
+    is unaware of the provider it does a normal HTTP GET.
+
+    Supported Types:
+
+    - GitHub
+    - GitLab
+"""
+import sys
+
+from pathlib import Path
+from urllib.parse import urlparse
+
+import requests
+import xxhash
+
+
+def resolve_download_url(url: str) -> str:
+    if "https://github.com" in url:
+        parsed_url = urlparse(url)
+        path = parsed_url.path.replace("/blob/", "/", 1)
+        return "https://raw.githubusercontent.com" + path
+
+    if "gitlab" in url:
+        return url.replace("/-/blob/", "/-/raw/", 1)
+
+    return url
+
+
+def main(download_dir: Path) -> int:
+    if not download_dir.exists():
+        try:
+            download_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            print("failed to create:", download_dir)
+            return 1
+
+    status = 0
+    for url in map(str.strip, sys.stdin):
+        resolved_url = resolve_download_url(url)
+        resp = requests.get(resolved_url, stream=True)
+        if resp.status_code > 399:
+            status = 2
+            print("HTTP GET failed url:", url, "status:", resp.status_code)
+            continue
+
+        try:
+            file_path = download_dir / xxhash.xxh3_128_hexdigest(resolved_url)
+            with file_path.open("wb") as file:
+                for chunk in resp.iter_content(chunk_size=1024 * 8):
+                    f.write(chunk)
+        except Exception as e:
+            print("failed to save file:", file_path, "url:", resolved_url, "error:", e)
+            return 3
+
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main(Path(sys.args[1])))
