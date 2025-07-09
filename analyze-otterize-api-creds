@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+import sys
+import requests
+import json
+
+
+def analyze(client_id, client_secret):
+    """
+    Analyzes Otterize Cloud credentials by first performing an OAuth
+    client credentials flow to get a token, and then using that token
+    to query the GraphQL API.
+    """
+    oauth_token_url = "https://app.otterize.com/api/auth/tokens/token"
+    results = {"valid": False, "analysis": {}}
+
+    try:
+
+        resp = requests.post(
+            "https://app.otterize.com/api/auth/tokens/token",
+            data={
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+        )
+
+        resp.raise_for_status()  # Will raise an exception for 4XX/5XX status
+        token_data = resp.json()
+        access_token = token_data.get("access_token")
+
+        if not access_token:
+            results["analysis"]["error"] = "no access token"
+            results["analysis"]["details"] = token_data
+            return results
+
+        results["valid"] = True
+
+        headers = {"Authorization": f"Bearer {access_token}"}
+        searches = {
+            "current_user": "https://app.otterize.com/api/rest/v1beta/me",
+            "environments": "https://app.otterize.com/api/rest/v1beta/environments",
+            "integrations": "https://app.otterize.com/api/rest/v1beta/integrations",
+            "invites": "https://app.otterize.com/api/rest/v1beta/invites",
+            "namespaces": "https://app.otterize.com/api/rest/v1beta/namespaces",
+            "organizations": "https://app.otterize.com/api/rest/v1beta/organizations",
+            "services": "https://app.otterize.com/api/rest/v1beta/services",
+            "users": "https://app.otterize.com/api/rest/v1beta/users",
+        }
+        for key, url in searches.items():
+            data = requests.get(url, headers=headers).json()
+
+            if key == "integrations":
+                for x in data:
+                    if "credentials" in x:
+                        if "clientSecret" in x["credentials"]:
+                            x["credentials"]["clientSecret"] = "REDACTED"
+
+            results["analysis"][key] = data
+
+    except requests.exceptions.HTTPError as e:
+        results["analysis"]["error"] = f"HTTP Error: {e.response.status_code}"
+        try:
+            results["analysis"]["details"] = e.response.json()
+        except json.JSONDecodeError:
+            results["analysis"]["details"] = e.response.text
+
+    except requests.exceptions.RequestException as e:
+        results["analysis"]["error"] = f"Request failed: {e}"
+
+    except json.JSONDecodeError as e:
+        results["analysis"]["error"] = "Failed to decode JSON response."
+        results["analysis"]["details"] = e.msg
+
+    return results
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} <client-id> <client-secret>")
+        sys.exit(1)
+
+    client_id_arg = sys.argv[1]
+    client_secret_arg = sys.argv[2]
+
+    analysis_result = analyze(client_id_arg, client_secret_arg)
+    print(json.dumps(analysis_result, indent=2))
