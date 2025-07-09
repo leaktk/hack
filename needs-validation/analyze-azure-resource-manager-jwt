@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+import sys
+import json
+import requests
+
+
+def analyze(token):
+    """
+    Analyzes an Azure AD JWT by attempting to list subscriptions.
+    """
+    if not token:
+        return {"valid": False, "analysis": {"error": "Token is empty"}}
+
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    url = "https://management.azure.com/subscriptions?api-version=2020-01-01"
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Raise an exception for bad status codes
+
+        subscriptions = response.json().get("value", [])
+        subscription_details = [
+            {
+                "id": sub.get("subscriptionId"),
+                "name": sub.get("displayName"),
+                "state": sub.get("state"),
+            }
+            for sub in subscriptions
+        ]
+
+        return {"valid": True, "analysis": {"subscriptions": subscription_details}}
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 401:
+            return {
+                "valid": False,
+                "analysis": {"error": "Token is invalid or expired."},
+            }
+        return {"valid": False, "analysis": {"error": str(e)}}
+    except Exception as e:
+        return {"valid": False, "analysis": {"error": str(e)}}
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: analyze-azure-jwt <token>")
+        sys.exit(1)
+
+    jwt_token = sys.argv[1]
+    result = analyze(jwt_token)
+    print(json.dumps(result, indent=2))
