@@ -10,9 +10,9 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
-	"sort"
 )
 
 var tlds = []string{
@@ -234,7 +234,7 @@ func readLine(reader *bufio.Reader) ([]byte, error) {
 }
 
 func validDomain(hostname string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond * 500)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
 	defer cancel()
 
 	resolver := net.Resolver{}
@@ -249,10 +249,10 @@ func validDomain(hostname string) bool {
 
 func main() {
 	reader := bufio.NewReader(os.Stdin)
+	seen := map[string]bool{}
 
 	for {
 		line, err := readLine(reader)
-		seen := map[string]bool{}
 		matches := domainPattern.FindAll(line, -1)
 		if len(matches) > 0 {
 			for _, match := range matches {
