@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+import json
+import requests
+import sys
+
+def truncate(obj):
+    if isinstance(obj, dict):
+        return {key: truncate(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return list(map(truncate, obj))
+    elif isinstance(obj, str):
+        if len(obj) > 128:
+            return f"{obj[:125]}..."
+        return obj
+    else:
+        return obj
+
+
+def analyze(url, key):
+    """
+    Analyzes a Supabase credential by attempting to list database tables.
+    """
+    headers = {"apikey": key, "Authorization": f"Bearer {key}"}
+
+    res = requests.get(f"{url}/rest/v1/", headers=headers)
+
+    if res.status_code != 200:
+        return {"valid": False, "analysis": {"error": res.text}}
+
+    try:
+        data = res.json()
+        analysis_data = {"tables": {}}
+        tables = list(data.get("definitions", {}).keys())
+
+        for table in tables:
+            # Add a limit to the query to get the first 10 rows
+            table_res = requests.get(f"{url}/rest/v1/{table}?limit=10", headers=headers)
+            if table_res.status_code == 200:
+                analysis_data["tables"][table] = truncate(table_res.json())
+            else:
+                analysis_data["tables"][table] = {"error": f"Failed to fetch with status {table_res.status_code}"}
+
+        return {"valid": True, "analysis": analysis_data}
+    except requests.exceptions.JSONDecodeError:
+        return {
+            "valid": False,
+            "analysis": {"error": "Failed to decode JSON response."},
+        }
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} <supabase_url> <supabase_key>")
+        sys.exit(1)
+
+    results = analyze(sys.argv[1], sys.argv[2])
+    print(json.dumps(results, indent=2))
