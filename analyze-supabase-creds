@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
+import base64
 import json
-import requests
 import sys
+
+import requests
+
 
 def truncate(obj):
     if isinstance(obj, dict):
@@ -16,36 +19,57 @@ def truncate(obj):
         return obj
 
 
+def is_jwt(s):
+    return s.startswith("ey") and len(s.split(".")) == 3
+
+
+def decode_jwt_part(part_str):
+    try:
+        padding = "=" * (4 - (len(part_str) % 4))
+        decoded_bytes = base64.urlsafe_b64decode(part_str + padding)
+        decoded_str = decoded_bytes.decode("utf-8")
+        return json.loads(decoded_str)
+    except Exception as e:
+        print(f"Error decoding JWT part: {e}", file=sys.stderr)
+        return None
+
+
 def analyze(url, key):
     """
     Analyzes a Supabase credential by attempting to list database tables.
     """
     headers = {"apikey": key, "Authorization": f"Bearer {key}"}
-
+    result = {"valid": False, "analysis": {}}
     res = requests.get(f"{url}/rest/v1/", headers=headers)
 
+    if is_jwt(key):
+        result["analysis"]["key_details"] = decode_jwt_part(key.split(".")[1])
+
     if res.status_code != 200:
-        return {"valid": False, "analysis": {"error": res.text}}
+        result["analysis"]["error"] = res.text
+        return result
 
     try:
         data = res.json()
-        analysis_data = {"tables": {}}
+        result["analysis"]["tables"] = {}
+        result["valid"] = True
         tables = list(data.get("definitions", {}).keys())
 
         for table in tables:
             # Add a limit to the query to get the first 10 rows
             table_res = requests.get(f"{url}/rest/v1/{table}?limit=10", headers=headers)
             if table_res.status_code == 200:
-                analysis_data["tables"][table] = truncate(table_res.json())
+                result["analysis"]["tables"][table] = truncate(table_res.json())
             else:
-                analysis_data["tables"][table] = {"error": f"Failed to fetch with status {table_res.status_code}"}
+                result["analysis"]["tables"][table] = {
+                    "error": f"failed to fetch with status: table={table} status={table_res.status_code}"
+                }
 
-        return {"valid": True, "analysis": analysis_data}
+        return result
     except requests.exceptions.JSONDecodeError:
-        return {
-            "valid": False,
-            "analysis": {"error": "Failed to decode JSON response."},
-        }
+        result["valid"] = False
+        result["analysis"]["error"] = "failed to decode JSON response"
+        return result
 
 
 if __name__ == "__main__":
