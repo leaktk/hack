@@ -1,0 +1,51 @@
+#!/usr/bin/python3
+
+import os
+import sys
+import string
+import random
+
+__doc__ = f"""
+USAGE
+    {os.path.basename(sys.argv[0])} [OPTIONS]
+
+OPTIONS
+    --help              show this help text
+    --count=n           generate this many tokens
+"""
+
+
+def main(args):
+    flags = {}
+    pos_args = []
+
+    if "--help" in args:
+        print(__doc__)
+        return 0
+
+    for arg in args:
+        if arg.startswith("--"):
+            key, value = arg[2:].split("=", 1)
+            flags[key] = value
+        else:
+            pos_arg.append(arg)
+
+    prefix = "ntn_"
+    count = int(flags.get("count", 1))
+    alphanum = string.ascii_letters + string.digits
+
+    for _ in range(count):
+        token = "".join(
+            (
+                prefix,
+                "".join(random.choices(string.digits, k=11)),
+                "".join(random.choices(alphanum, k=35)),
+            )
+        )
+
+        print(token)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
