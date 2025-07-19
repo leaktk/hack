@@ -35,7 +35,7 @@ def access_key_id_regex(account_id):
     # Base32 encode
     encoded = base64.b32encode(z).decode("ascii")
     # Add the KeyID prefix (typically "AKIA")
-    return rf"AKIA{encoded[:8]}[A-Z0-9]{{8}}"
+    return rf"AKIA{encoded[:8]}[A-Z2-7]{{8}}"
 
 
 def main(argv):
