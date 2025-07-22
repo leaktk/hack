@@ -1,46 +1,274 @@
+#!/usr/bin/env python3
+
+import json
 import os
 import re
 import sys
-import json
 
-keywords = []
-stopwords = []
+keywords = {
+    "$1$",
+    "$2a$",
+    "$2b$",
+    "$2x$",
+    "$2y$",
+    "$5$",
+    "$6$",
+    "$7$",
+    "$gy$",
+    "$md5",
+    "$y$",
+    "-----begin",
+    "--token",
+    "-us",
+    ".tines.com/webhook/",
+    "5hdxromc5jb20vii",
+    "://",
+    '"auths',
+    "_auth",
+    "_password",
+    "a3t",
+    "abia",
+    "acca",
+    "access_token$production$",
+    "agpa",
+    "aida",
+    "aipa",
+    "aiza",
+    "akia",
+    "anpa",
+    "anva",
+    "aroa",
+    "asia",
+    "authorization",
+    "aws",
+    "c2vzc2lvbjpyb2xllwfue",
+    "c2vzc2lvbjpyb2xlo",
+    "client_secret",
+    "clientsecret",
+    "controlled",
+    "crudjtibpuevou1niifbssv",
+    "cui",
+    "define",
+    "dropbox",
+    "dt0eaacedeose0cbafacebook",
+    "f3c19hy2nlc3nfa2v5x2lk",
+    "ftkqgt1bftlntscbquklw",
+    "gho_",
+    "ghp_",
+    "ghr_",
+    "ghs_",
+    "ghu_",
+    "github_pat_",
+    "glpat-",
+    "glptt-",
+    "glrt-",
+    "gr1348941",
+    "hd3nfywnjzxnzx2tlev9pz",
+    "heroku",
+    "hf_",
+    "hooks.slack.com",
+    "iaxnzijoiahr0chm6ly9zdgfja3jvec5pby9qd3qi",
+    "iaxnzijoiyxjnb2nki",
+    "ic3viijoic3lzdgvtonnlcnzpy2vhy2nvdw50o",
+    "imf1zci6innub3dmbgfrzs",
+    "imlzcyi6imfyz29jzc",
+    "imlzcyi6imh0dhbzoi8vc3rhy2tyb3guaw8vand0i",
+    "inn1yii6inn5c3rlbtpzzxj2awnlywnjb3vudd",
+    "iyxvkijoic25vd2zsywtli",
+    "jfr0loie9qru5tu0ggufjjv",
+    "jhdwqioijzbm93zmxha2ug",
+    "jpc3mioijhcmdvy2qi",
+    "jpc3mioijodhrwczovl3n0ywnrcm94lmlvl2p3dc",
+    "jzdwiioijzexn0zw06c2vydmljzwfjy291bnq6",
+    "k_live_",
+    "key",
+    "key-",
+    "label_studio_api_key",
+    "lmf1dggwlmnvbs8il",
+    "mailgun",
+    "nlc3npb246cm9szs1hbn",
+    "nlc3npb246cm9szt",
+    "npm_",
+    "password",
+    "password",
+    "password",
+    "password",
+    "pypi-ageichlwas5vcmc",
+    "qkvhsu4gt1bftlntscbquklw",
+    "ru5eie9qru5tu0ggufjjv",
+    "secret",
+    "secret",
+    "secret",
+    "secret",
+    "secret_id",
+    "sg.",
+    "sha256~",
+    "shpat_",
+    "shpca_",
+    "shppa_",
+    "shpss_",
+    "sk",
+    "sk_live_",
+    "sl.",
+    "sl.u.",
+    "sonar",
+    "sq0atp-",
+    "sq0csp-",
+    "t3blbkfj",
+    "testing_farm_api_token",
+    "token",
+    "token",
+    "token",
+    "token",
+    "uyxv0adauy29tlyis",
+    "vorcbpuevou1niifbssv",
+    "wgdyb3fy",
+    "xapp-",
+    "xoxa-",
+    "xoxb-",
+    "xoxb-",
+    "xoxe-",
+    "xoxe-",
+    "xoxe.xoxb-",
+    "xoxe.xoxp-",
+    "xoxo-",
+    "xoxp-",
+    "xoxr-",
+    "xoxs-",
+    "yxdzx2fjy2vzc19rzxlfaw",
+    "zzxnzaw9uonjvbgu6",
+    "zzxnzaw9uonjvbgutyw55",
+}
 
-# Create array of keywords from gitleaks/patterns
-with open("resources/keywords.txt", "r") as f:
-    for word in f:
-        keywords.append(word.strip())
+stopwords = {
+    "***",
+    "...",
+    "/etc/",
+    "/run/",
+    "/var/",
+    "1234",
+    "AIzaSyA65lEHUEizIsNtlbNo-l2K18dT680nsaM",
+    "_key",
+    "abc123",
+    "abcd",
+    "abcdef",
+    "admin",
+    "ansible",
+    "auth",
+    "base",
+    "bearer",
+    "bool",
+    "bucket",
+    "candlepin",
+    "categories",
+    "cert",
+    "change",
+    "client",
+    "conf",
+    "cont",
+    "cred",
+    "curl",
+    "data",
+    "default",
+    "demo",
+    "dissem",
+    "django",
+    "enter",
+    "entry",
+    "environ",
+    "everyone",
+    "example",
+    "fake",
+    "fwefnuexf",
+    "get",
+    "gitops",
+    "hash",
+    "header",
+    "here",
+    "insert",
+    "invalid",
+    "java",
+    "json",
+    "keylime",
+    "legftcgxl",
+    "local",
+    "localhost",
+    "login",
+    "manager",
+    "name",
+    "newseveryone",
+    "oauth-basic",
+    "opens",
+    "openshift",
+    "openstack",
+    "passp",
+    "passw",
+    "path",
+    "pbench",
+    "place",
+    "placeholder",
+    "postgres",
+    "principal",
+    "prisma",
+    "private",
+    "profile",
+    "provide",
+    "quickstart",
+    "rabbitmq",
+    "redhat",
+    "registry",
+    "replace",
+    "required",
+    "resource",
+    "role",
+    "rvhbtvbmr",
+    "sample",
+    "schema",
+    "secret",
+    "serv",
+    "slack",
+    "snip",
+    "some",
+    "spec",
+    "string",
+    "telemetry",
+    "test",
+    "theblurstoftimes",
+    "todo",
+    "token",
+    "update",
+    "user",
+    "userpass",
+    "uuid",
+    "v4yw1wbg",
+    "value",
+    "vyqu1qte",
+    "xxx",
+    "xxxxx",
+    "your",
+    "zxhhbxbsz",
+}
 
-# Creat array of stopwords from gitleaks/patterns
-with open("resources/stopwords.txt", "r") as f:
-    for word in f:
-        stopwords.append(word.strip())
 
-words = []
-with open("resources/dictionary-words.txt", "r") as f:
-    for word in f:
+def iter_to_re(xs, *args):
+    return re.compile("|".join(map(re.escape, set(xs))), *args)
+
+
+with open("/usr/share/dict/words", encoding="UTF-8") as words_file:
+    dictwords = set()
+    for word in words_file:
         word = word.strip()
-        if len(word) > 2:
-            words.append(word)
+        dictwords.add(word.lower())
+        dictwords.add(word.upper())
+        dictwords.add(word.capitalize())
 
-keywords_pattern = re.compile("|".join(re.escape(k) for k in keywords), re.IGNORECASE)
-stopwords_pattern = re.compile("|".join(re.escape(s) for s in stopwords), re.IGNORECASE)
-lowercase_words = set(re.escape(word.lower()) for word in words)
-uppercase_words = set(re.escape(word.upper()) for word in words)
-titlecase_words = set(re.escape(word.capitalize()) for word in words)
-DICT_WORD_PATTERN_LOWER = re.compile(
-    "|".join(lowercase_words) if lowercase_words else r"^$"
-)
-DICT_WORD_PATTERN_UPPER = re.compile(
-    "|".join(uppercase_words) if uppercase_words else r"^$"
-)
-DICT_WORD_PATTERN_TITLE = re.compile(
-    "|".join(titlecase_words) if titlecase_words else r"^$"
-)
+
+keywords_pattern = iter_to_re(keywords, re.IGNORECASE)
+stopwords_pattern = iter_to_re(stopwords, re.IGNORECASE)
+dictwords_pattern = iter_to_re(dictwords)
 
 
 def get_finding(path, line_start, col_start, line_end, col_end):
-
     if not os.path.exists(path):
         print(f"Error: File not found at '{path}'")
         return ""
@@ -48,7 +276,6 @@ def get_finding(path, line_start, col_start, line_end, col_end):
     finding = []
     try:
         with open(path, "r", encoding="utf-8") as f:
-
             lines = f.readlines()
 
             line_start_idx = line_start - 1
@@ -72,7 +299,6 @@ def get_finding(path, line_start, col_start, line_end, col_end):
                 return ""
 
             finding_line = ""
-
             for i in range(line_start_idx, line_end_idx + 1):
                 curr_line = lines[i].rstrip("\n")
                 finding_line = finding_line + curr_line
@@ -105,131 +331,100 @@ def get_finding(path, line_start, col_start, line_end, col_end):
         return ""
 
 
-def search_line(line):
-    has_keyword = bool(keywords_pattern.search(line))
-    has_stopword = bool(stopwords_pattern.search(line))
-
+def search_str(s):
+    has_keyword = bool(keywords_pattern.search(s))
+    has_stopword = bool(stopwords_pattern.search(s))
     has_consecutive = False
     has_repeating = False
 
-    if re.search(r"(.)\1\1", line):
+    if re.search(r"(.)\1\1", s):
         has_repeating = True
 
-    lower_line = line.lower()
-    line_len = len(lower_line)
+    s = s.lower()
+    size = len(s)
 
-    for i in range(line_len - 2):
-        char1 = lower_line[i]
-        char2 = lower_line[i + 1]
-        char3 = lower_line[i + 2]
+    for i in range(size - 2):
+        c1 = s[i]
+        c2 = s[i + 1]
+        c3 = s[i + 2]
 
-        if char1.isalpha() and char2.isalpha() and char3.isalpha():
-            if ord(char2) == ord(char1) + 1 and ord(char3) == ord(char1) + 2:
+        if c1.isalpha() and c2.isalpha() and c3.isalpha():
+            if ord(c2) == ord(c1) + 1 and ord(c3) == ord(c1) + 2:
                 has_consecutive = True
                 break
 
-        elif char1.isdigit() and char2.isdigit() and char3.isdigit():
-            if int(char2) == int(char1) + 1 and int(char3) == int(char1) + 2:
+        elif c1.isdigit() and c2.isdigit() and c3.isdigit():
+            if int(c2) == int(c1) + 1 and int(c3) == int(c1) + 2:
                 has_consecutive = True
                 break
 
     return has_keyword, has_stopword, has_consecutive, has_repeating
 
 
+def search_line(line):
+    return search_str(line)
+
+
 def search_finding(finding):
-    has_keyword = bool(keywords_pattern.search(finding))
-    has_stopword = bool(stopwords_pattern.search(finding))
-    has_dict = False
+    has_keyword, has_stopword, has_consecutive, has_repeating = search_str(finding)
+    has_dictword = bool(dictwords_pattern.search(finding))
 
-    has_consecutive = False
-    has_repeating = False
-
-    if re.search(r"(.)\1\1", finding):
-        has_repeating = True
-
-    lower_line = finding.lower()
-    line_len = len(lower_line)
-
-    for i in range(line_len - 2):
-        char1 = lower_line[i]
-        char2 = lower_line[i + 1]
-        char3 = lower_line[i + 2]
-
-        if char1.isalpha() and char2.isalpha() and char3.isalpha():
-            if ord(char2) == ord(char1) + 1 and ord(char3) == ord(char1) + 2:
-                has_consecutive = True
-                break
-
-        elif char1.isdigit() and char2.isdigit() and char3.isdigit():
-            if int(char2) == int(char1) + 1 and int(char3) == int(char1) + 2:
-                has_consecutive = True
-                break
-
-    if DICT_WORD_PATTERN_LOWER.search(finding):
-        has_dict = True
-
-    if DICT_WORD_PATTERN_UPPER.search(finding):
-        has_dict = True
-
-    if DICT_WORD_PATTERN_TITLE.search(finding):
-        has_dict = True
-
-    num_num = 0
-    num_special = 0
-    no_num = True
+    total_special = 0
+    total_numbers = 0
 
     for char in finding:
-        if not char.isalnum() and not char.isspace():
-            num_special += 1
-        if "0" <= char <= "9":
-            num_num += 1
-            no_num = False
+        if not (char.isalnum() or char.isspace()):
+            total_special += 1
+        elif "0" <= char <= "9":
+            total_numbers += 1
+
+    has_number = total_numbers > 0
 
     return (
         has_keyword,
         has_stopword,
         has_consecutive,
         has_repeating,
-        has_dict,
-        num_num,
-        num_special,
-        no_num,
+        has_dictword,
+        has_number,
+        total_numbers,
+        total_special,
     )
 
 
 if __name__ == "__main__":
-    extraction = {}
-
-    extraction["path"] = sys.argv[1]
-    extraction["line_start"] = int(sys.argv[2])
-    extraction["column_start"] = int(sys.argv[3])
-    extraction["line_end"] = int(sys.argv[4])
-    extraction["column_end"] = int(sys.argv[5])
-
-    finding, line = get_finding(
+    extraction = {
+        "path": sys.argv[1],
+        "line_start": int(sys.argv[2]),
+        "column_start": int(sys.argv[3]),
+        "line_end": int(sys.argv[4]),
+        "column_end": int(sys.argv[5]),
+    }
+    (
+        extraction["finding"],
+        extraction["line"],
+    ) = get_finding(
         extraction["path"],
         extraction["line_start"],
         extraction["column_start"],
         extraction["line_end"],
         extraction["column_end"],
     )
-
     (
         extraction["line_has_keyword"],
         extraction["line_has_stopword"],
         extraction["line_has_consecutive"],
         extraction["line_has_repeating"],
-    ) = search_line(line)
-
+    ) = search_line(extraction["line"])
     (
         extraction["finding_has_keyword"],
         extraction["finding_has_stopword"],
         extraction["finding_has_consecutive"],
         extraction["finding_has_repeating"],
-        extraction["finding_has_dict_word"],
-        extraction["num_numbers"],
-        extraction["num_special"],
-        extraction["no_num"],
-    ) = search_finding(finding)
+        extraction["finding_has_dictword"],
+        extraction["finding_has_number"],
+        extraction["finding_total_numbers"],
+        extraction["finding_total_special"],
+    ) = search_finding(extraction["finding"])
 
     print(json.dumps(extraction))
