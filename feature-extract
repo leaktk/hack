@@ -1,0 +1,235 @@
+import os
+import re
+import sys
+import json
+
+keywords = []
+stopwords = []
+
+# Create array of keywords from gitleaks/patterns
+with open("resources/keywords.txt", "r") as f:
+    for word in f:
+        keywords.append(word.strip())
+
+# Creat array of stopwords from gitleaks/patterns
+with open("resources/stopwords.txt", "r") as f:
+    for word in f:
+        stopwords.append(word.strip())
+
+words = []
+with open("resources/dictionary-words.txt", "r") as f:
+    for word in f:
+        word = word.strip()
+        if len(word) > 2:
+            words.append(word)
+
+keywords_pattern = re.compile("|".join(re.escape(k) for k in keywords), re.IGNORECASE)
+stopwords_pattern = re.compile("|".join(re.escape(s) for s in stopwords), re.IGNORECASE)
+lowercase_words = set(re.escape(word.lower()) for word in words)
+uppercase_words = set(re.escape(word.upper()) for word in words)
+titlecase_words = set(re.escape(word.capitalize()) for word in words)
+DICT_WORD_PATTERN_LOWER = re.compile(
+    "|".join(lowercase_words) if lowercase_words else r"^$"
+)
+DICT_WORD_PATTERN_UPPER = re.compile(
+    "|".join(uppercase_words) if uppercase_words else r"^$"
+)
+DICT_WORD_PATTERN_TITLE = re.compile(
+    "|".join(titlecase_words) if titlecase_words else r"^$"
+)
+
+
+def get_finding(path, line_start, col_start, line_end, col_end):
+
+    if not os.path.exists(path):
+        print(f"Error: File not found at '{path}'")
+        return ""
+
+    finding = []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+
+            lines = f.readlines()
+
+            line_start_idx = line_start - 1
+            col_start_idx = col_start - 1
+            line_end_idx = line_end - 1
+            col_end_idx = col_end - 1
+
+            if not (
+                0 <= line_start_idx < len(lines) and 0 <= line_end_idx < len(lines)
+            ):
+                print("Error: Line numbers are out of bounds")
+                return ""
+
+            if line_start_idx > line_end_idx:
+                print("Error: Line numbers are out of bounds.")
+                return ""
+            elif line_start_idx == line_end_idx and col_start_idx > col_end_idx:
+                print(
+                    "Error: Start column cannot be greater than end column on the same line."
+                )
+                return ""
+
+            finding_line = ""
+
+            for i in range(line_start_idx, line_end_idx + 1):
+                curr_line = lines[i].rstrip("\n")
+                finding_line = finding_line + curr_line
+                start_col = 0
+                end_col = len(curr_line)
+
+                if i == line_start_idx:
+                    start_col = col_start_idx
+                if i == line_end_idx:
+                    end_col = col_end_idx
+                if not (
+                    0 <= start_col <= len(curr_line) and 0 <= end_col <= len(curr_line)
+                ):
+                    print(f"Error: Column numbers are out of bounds for line {i+1}.")
+                    return ""
+
+                if start_col > end_col:
+                    print(
+                        f"Warning: Adjusted start column ({start_col+1}) is greater than adjusted end column ({end_col+1}) on line {i+1}. This might result in an empty string for this segment."
+                    )
+                    finding.append("")
+                    continue
+
+                finding.append(curr_line[start_col:end_col])
+
+        return "".join(finding), finding_line
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return ""
+
+
+def search_line(line):
+    has_keyword = bool(keywords_pattern.search(line))
+    has_stopword = bool(stopwords_pattern.search(line))
+
+    has_consecutive = False
+    has_repeating = False
+
+    if re.search(r"(.)\1\1", line):
+        has_repeating = True
+
+    lower_line = line.lower()
+    line_len = len(lower_line)
+
+    for i in range(line_len - 2):
+        char1 = lower_line[i]
+        char2 = lower_line[i + 1]
+        char3 = lower_line[i + 2]
+
+        if char1.isalpha() and char2.isalpha() and char3.isalpha():
+            if ord(char2) == ord(char1) + 1 and ord(char3) == ord(char1) + 2:
+                has_consecutive = True
+                break
+
+        elif char1.isdigit() and char2.isdigit() and char3.isdigit():
+            if int(char2) == int(char1) + 1 and int(char3) == int(char1) + 2:
+                has_consecutive = True
+                break
+
+    return has_keyword, has_stopword, has_consecutive, has_repeating
+
+
+def search_finding(finding):
+    has_keyword = bool(keywords_pattern.search(finding))
+    has_stopword = bool(stopwords_pattern.search(finding))
+    has_dict = False
+
+    has_consecutive = False
+    has_repeating = False
+
+    if re.search(r"(.)\1\1", finding):
+        has_repeating = True
+
+    lower_line = finding.lower()
+    line_len = len(lower_line)
+
+    for i in range(line_len - 2):
+        char1 = lower_line[i]
+        char2 = lower_line[i + 1]
+        char3 = lower_line[i + 2]
+
+        if char1.isalpha() and char2.isalpha() and char3.isalpha():
+            if ord(char2) == ord(char1) + 1 and ord(char3) == ord(char1) + 2:
+                has_consecutive = True
+                break
+
+        elif char1.isdigit() and char2.isdigit() and char3.isdigit():
+            if int(char2) == int(char1) + 1 and int(char3) == int(char1) + 2:
+                has_consecutive = True
+                break
+
+    if DICT_WORD_PATTERN_LOWER.search(finding):
+        has_dict = True
+
+    if DICT_WORD_PATTERN_UPPER.search(finding):
+        has_dict = True
+
+    if DICT_WORD_PATTERN_TITLE.search(finding):
+        has_dict = True
+
+    num_num = 0
+    num_special = 0
+    no_num = True
+
+    for char in finding:
+        if not char.isalnum() and not char.isspace():
+            num_special += 1
+        if "0" <= char <= "9":
+            num_num += 1
+            no_num = False
+
+    return (
+        has_keyword,
+        has_stopword,
+        has_consecutive,
+        has_repeating,
+        has_dict,
+        num_num,
+        num_special,
+        no_num,
+    )
+
+
+if __name__ == "__main__":
+    extraction = {}
+
+    extraction["path"] = sys.argv[1]
+    extraction["line_start"] = int(sys.argv[2])
+    extraction["column_start"] = int(sys.argv[3])
+    extraction["line_end"] = int(sys.argv[4])
+    extraction["column_end"] = int(sys.argv[5])
+
+    finding, line = get_finding(
+        extraction["path"],
+        extraction["line_start"],
+        extraction["column_start"],
+        extraction["line_end"],
+        extraction["column_end"],
+    )
+
+    (
+        extraction["line_has_keyword"],
+        extraction["line_has_stopword"],
+        extraction["line_has_consecutive"],
+        extraction["line_has_repeating"],
+    ) = search_line(line)
+
+    (
+        extraction["finding_has_keyword"],
+        extraction["finding_has_stopword"],
+        extraction["finding_has_consecutive"],
+        extraction["finding_has_repeating"],
+        extraction["finding_has_dict_word"],
+        extraction["num_numbers"],
+        extraction["num_special"],
+        extraction["no_num"],
+    ) = search_finding(finding)
+
+    print(json.dumps(extraction))
