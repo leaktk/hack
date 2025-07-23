@@ -98,16 +98,21 @@ def analyze(key_file_path):
             f"{user}@{provider}",
         ]
 
-        proc = subprocess.run(command, capture_output=True, text=True, timeout=10)
+        try:
+            proc = subprocess.run(command, capture_output=True, text=True, timeout=10)
 
-        auth_success = "denied" not in proc.stderr.lower()
-        if auth_success:
-            results["valid"] = True
+            auth_success = "denied" not in proc.stderr.lower()
+            if auth_success:
+                results["valid"] = True
 
+                results["analysis"]["access"][provider] = {
+                    "stdout": proc.stdout.strip(),
+                    "stderr": proc.stderr.strip(),
+                    "exit_code": proc.returncode,
+                }
+        except Exception as e:
             results["analysis"]["access"][provider] = {
-                "stdout": proc.stdout.strip(),
-                "stderr": proc.stderr.strip(),
-                "exit_code": proc.returncode,
+                "error": "connection timeout",
             }
 
     return results

@@ -34,9 +34,13 @@ def analyze(token_url, client_id, client_secret):
         token_data = response.json()
 
         if "access_token" in token_data:
+            access_token = token_data.pop("access_token")
             # Only include the payload
+            token_data["access_token_headers"] = decode_jwt_part(
+                access_token.split(".")[0],
+            )
             token_data["access_token_payload"] = decode_jwt_part(
-                token_data.pop("access_token").split(".")[1],
+                access_token.split(".")[1],
             )
 
             result["valid"] = True
