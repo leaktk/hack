@@ -1,21 +1,88 @@
+#!/usr/bin/env python3
+import json
+import os
+import tempfile
 import tiktoken
+import sys
+import subprocess
+
+findings = []
+filtered = []
 
 
-def score_cl100k(s):
+def score_cl100k(scan, threshold):
     encoding = tiktoken.get_encoding("cl100k_base")
-    return len(s) / len(encoding.encode(s))
+    for finding in scan:
+        if (len(encoding.encode(finding["Secret"])) / len(finding["Secret"])) > float(
+            threshold
+        ):
+            filtered.append(finding)
+    return filtered
 
 
-def score_o200k(s):
+def score_o200k(scan, threshold):
     encoding = tiktoken.get_encoding("o200k_base")
-    return len(s) / len(encoding.encode(s))
+    for finding in scan:
+        if (len(encoding.encode(finding["Secret"])) / len(finding["Secret"])) > float(
+            threshold
+        ):
+            filtered.append(finding)
+    return filtered
 
 
-def score_p50k(s):
+def score_p50k(scan, threshold):
     encoding = tiktoken.get_encoding("p50k_base")
-    return len(s) / len(encoding.encode(s))
+    for finding in scan:
+        if (len(encoding.encode(finding["Secret"])) / len(finding["Secret"])) > float(
+            threshold
+        ):
+            filtered.append(finding)
+    return filtered
 
 
-def score_r50k(s):
+def score_r50k(scan, threshold):
     encoding = tiktoken.get_encoding("r50k_base")
-    return len(s) / len(encoding.encode(s))
+    for finding in scan:
+        if (len(encoding.encode(finding["Secret"])) / len(finding["Secret"])) > float(
+            threshold
+        ):
+            filtered.append(finding)
+    return filtered
+
+
+def scan(file_content):
+    temp_report = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+    temp_report.close()
+    cmd = [
+        "gitleaks",
+        "stdin",
+        "--config=token-rule.toml",
+        "-v",
+        "-r",
+        temp_report.name,
+    ]
+    output = subprocess.run(
+        cmd,
+        stdin=file_content,
+    )
+    with open(temp_report.name, "r") as f:
+        findings = json.load(f)
+    os.remove(temp_report.name)
+    return findings
+
+
+if __name__ == "__main__":
+    stdin_scan = scan(sys.stdin)
+    encoding = sys.argv[1].split("=")[1]
+    threshold = sys.argv[2].split("=")[1]
+
+    if encoding == "cl100k":
+        output = score_cl100k(stdin_scan, threshold)
+    elif encoding == "o200k":
+        output = score_o200k(stdin_scan, threshold)
+    elif encoding == "p50k":
+        output = score_p50k(stdin_scan, threshold)
+    elif encoding == "r50k":
+        output = score_r50k(stdin_scan, threshold)
+    print(json.dumps(output, indent=4))
+    print("Filtered Leaks: ", len(output))
