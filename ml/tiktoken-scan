@@ -45,6 +45,8 @@ def scan(file_content):
     ]
     output = subprocess.run(
         cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         stdin=file_content,
     )
     with open(temp_report.name, "r") as f:
