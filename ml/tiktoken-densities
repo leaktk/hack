@@ -1,0 +1,21 @@
+import tiktoken
+
+
+def score_cl100k(s):
+    encoding = tiktoken.get_encoding("cl100k_base")
+    return len(s) / len(encoding.encode(s))
+
+
+def score_o200k(s):
+    encoding = tiktoken.get_encoding("o200k_base")
+    return len(s) / len(encoding.encode(s))
+
+
+def score_p50k(s):
+    encoding = tiktoken.get_encoding("p50k_base")
+    return len(s) / len(encoding.encode(s))
+
+
+def score_r50k(s):
+    encoding = tiktoken.get_encoding("r50k_base")
+    return len(s) / len(encoding.encode(s))

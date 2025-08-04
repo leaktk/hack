@@ -1,0 +1,4 @@
+[[rules]]
+id = 'high-entropy-token'
+regex = '''[^\s<>=:\"\'#\[\]\(\)\{\}]+'''
+entropy = 3.35
