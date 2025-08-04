@@ -5,49 +5,31 @@ import tempfile
 import tiktoken
 import sys
 import subprocess
+import argparse
 
 findings = []
 filtered = []
 
 
-def score_cl100k(scan, threshold):
-    encoding = tiktoken.get_encoding("cl100k_base")
-    for finding in scan:
-        if (len(encoding.encode(finding["Secret"])) / len(finding["Secret"])) > float(
-            threshold
-        ):
-            filtered.append(finding)
-    return filtered
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-e", "--encoding", type=str, help="Type of encoding", required=True
+    )
+    parser.add_argument(
+        "-d", "--density", type=float, help="Density threshold", required=True
+    )
+    return parser.parse_args()
 
 
-def score_o200k(scan, threshold):
-    encoding = tiktoken.get_encoding("o200k_base")
-    for finding in scan:
-        if (len(encoding.encode(finding["Secret"])) / len(finding["Secret"])) > float(
-            threshold
-        ):
-            filtered.append(finding)
-    return filtered
-
-
-def score_p50k(scan, threshold):
-    encoding = tiktoken.get_encoding("p50k_base")
-    for finding in scan:
-        if (len(encoding.encode(finding["Secret"])) / len(finding["Secret"])) > float(
-            threshold
-        ):
-            filtered.append(finding)
-    return filtered
-
-
-def score_r50k(scan, threshold):
-    encoding = tiktoken.get_encoding("r50k_base")
-    for finding in scan:
-        if (len(encoding.encode(finding["Secret"])) / len(finding["Secret"])) > float(
-            threshold
-        ):
-            filtered.append(finding)
-    return filtered
+def tiktoken_filter(findings, threshold, encoding_name="cl100k_base"):
+    encoding = tiktoken.get_encoding(encoding_name)
+    threshold = float(threshold)
+    return [
+        finding
+        for finding in findings
+        if len(encoding.encode(finding["Secret"])) / len(finding["Secret"]) > threshold
+    ]
 
 
 def scan(file_content):
@@ -73,16 +55,9 @@ def scan(file_content):
 
 if __name__ == "__main__":
     stdin_scan = scan(sys.stdin)
-    encoding = sys.argv[1].split("=")[1]
-    threshold = sys.argv[2].split("=")[1]
-
-    if encoding == "cl100k":
-        output = score_cl100k(stdin_scan, threshold)
-    elif encoding == "o200k":
-        output = score_o200k(stdin_scan, threshold)
-    elif encoding == "p50k":
-        output = score_p50k(stdin_scan, threshold)
-    elif encoding == "r50k":
-        output = score_r50k(stdin_scan, threshold)
+    args = parse_arguments()
+    encoding = args.encoding
+    threshold = args.density
+    output = tiktoken_filter(stdin_scan, threshold, encoding)
     print(json.dumps(output, indent=4))
     print("Filtered Leaks: ", len(output))
