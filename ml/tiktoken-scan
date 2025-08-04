@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+import json
+import os
+import tempfile
+import tiktoken
+import sys
+import subprocess
+import argparse
+
+findings = []
+filtered = []
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-e", "--encoding", type=str, help="Type of encoding", required=True
+    )
+    parser.add_argument(
+        "-d", "--density", type=float, help="Density threshold", required=True
+    )
+    return parser.parse_args()
+
+
+def tiktoken_filter(findings, threshold, encoding_name="cl100k_base"):
+    encoding = tiktoken.get_encoding(encoding_name)
+    threshold = float(threshold)
+    return [
+        finding
+        for finding in findings
+        if len(encoding.encode(finding["Secret"])) / len(finding["Secret"]) > threshold
+    ]
+
+
+def scan(file_content):
+    temp_report = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+    temp_report.close()
+    cmd = [
+        "gitleaks",
+        "stdin",
+        "--config=token-rule.toml",
+        "-v",
+        "-r",
+        temp_report.name,
+    ]
+    output = subprocess.run(
+        cmd,
+        stdin=file_content,
+    )
+    with open(temp_report.name, "r") as f:
+        findings = json.load(f)
+    os.remove(temp_report.name)
+    return findings
+
+
+if __name__ == "__main__":
+    stdin_scan = scan(sys.stdin)
+    args = parse_arguments()
+    encoding = args.encoding
+    threshold = args.density
+    output = tiktoken_filter(stdin_scan, threshold, encoding)
+    print(json.dumps(output, indent=4))
+    print("Filtered Leaks: ", len(output))
