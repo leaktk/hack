@@ -6,10 +6,12 @@ import git
 import json
 import shutil
 from pathlib import Path
-from chardet.universaldetector import UniversalDetector
 
 
 def decode_bytes(data: bytes) -> str:
+    """
+    Attempts to decode bytes using a list of common encodings.
+    """
     encodings_to_try = [
         "utf-8",
         "latin-1",
@@ -24,68 +26,77 @@ def decode_bytes(data: bytes) -> str:
         except UnicodeDecodeError:
             continue
 
+    # If all else fails, use a replacement handler to avoid crashing
     return data.decode("utf-8", errors="replace")
 
 
-def get_git_log_as_jsonl(repo_url: str, output_file: Path):
-    repo_dir = repo_url.split("/")[-1].replace(".git", "")
+def get_git_log_as_jsonl(repo_path: str):
+    """
+    Opens a local git repository, converts its log to a JSONL file.
+    """
+    repo_dir = Path(repo_path)
 
-    print(f"Cloning repository from {repo_url}...")
+    # Check if the path is a valid git repository
+    if not (repo_dir / ".git").exists():
+        print(f"Error: '{repo_path}' is not a valid git repository.")
+        return False
+
+    print(f"Opening repository at {repo_path}...")
     try:
-        repo = git.Repo.clone_from(repo_url, repo_dir)
-    except git.exc.GitCommandError as e:
-        print(f"Error: Failed to clone repository. {e}")
+        repo = git.Repo(repo_path)
+    except git.exc.InvalidGitRepositoryError:
+        print(f"Error: Path '{repo_path}' does not contain a valid git repository.")
         return False
 
     print("Generating JSONL file...")
 
     try:
-        with open(output_file, "w", encoding="utf-8") as f:
-            for commit in repo.iter_commits("HEAD"):
-                commit_id = commit.hexsha
-                message = decode_bytes(commit.message.strip().encode())
-                if commit.parents:
-                    diffs = commit.diff(commit.parents[0], create_patch=True)
-                else:
-                    diffs = commit.diff(None, create_patch=True)
 
-                for diff in diffs:
-                    patch_text = decode_bytes(diff.diff)
-                    file_path = diff.a_path or diff.b_path
+        for commit in repo.iter_commits("HEAD"):
+            commit_id = commit.hexsha
+            message = decode_bytes(commit.message.strip().encode())
 
-                    if file_path:
-                        commit_data = {
-                            "id": commit_id,
-                            "patch": patch_text,
-                            "path": file_path,
-                            "author": {
-                                "name": commit.author.name,
-                                "email": commit.author.email,
-                                "date": commit.authored_datetime.isoformat(),
-                            },
-                            "committer": {
-                                "name": commit.committer.name,
-                                "email": commit.committer.email,
-                                "date": commit.committed_datetime.isoformat(),
-                            },
-                            "message": message,
-                        }
-                        f.write(json.dumps(commit_data, ensure_ascii=False) + "\n")
+            # Handling diffs for the first commit vs. subsequent commits
+            if commit.parents:
+                diffs = commit.diff(commit.parents[0], create_patch=True)
+            else:
+                diffs = commit.diff(None, create_patch=True)
 
-    finally:
-        shutil.rmtree(repo_dir, ignore_errors=True)
-        print(f"Removed temporary directory {repo_dir}.")
+            for diff in diffs:
+                patch_text = decode_bytes(diff.diff)
+                # Use a_path or b_path depending on if the file was added/deleted
+                file_path = diff.a_path if diff.a_path else diff.b_path
 
-    print(f"Successfully converted git log to {output_file}.")
+                if file_path:
+                    commit_data = {
+                        "id": commit_id,
+                        "patch": patch_text,
+                        "path": file_path,
+                        "author": {
+                            "name": commit.author.name,
+                            "email": commit.author.email,
+                            "date": commit.authored_datetime.isoformat(),
+                        },
+                        "committer": {
+                            "name": commit.committer.name,
+                            "email": commit.committer.email,
+                            "date": commit.committed_datetime.isoformat(),
+                        },
+                        "message": message,
+                    }
+                    print(json.dumps(commit_data, ensure_ascii=False) + "\n")
+
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return False
     return True
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python3 git-log-to-jsonl.py <git_url> [<output_file>]")
+        print("Usage: python3 <script_name>.py <local_repo_path>")
         sys.exit(1)
 
-    git_url = sys.argv[1]
-    output_filename = sys.argv[2] if len(sys.argv) > 2 else "commits.jsonl"
+    repo_path = sys.argv[1]
 
-    get_git_log_as_jsonl(git_url, Path(output_filename))
+    get_git_log_as_jsonl(repo_path)
