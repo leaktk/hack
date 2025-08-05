@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import git
+import json
+import shutil
+from pathlib import Path
+from chardet.universaldetector import UniversalDetector
+
+
+def decode_bytes(data: bytes) -> str:
+    encodings_to_try = [
+        "utf-8",
+        "latin-1",
+        "iso-8859-1",
+        "cp1252",
+        "ascii",
+    ]
+
+    for encoding in encodings_to_try:
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+
+    return data.decode("utf-8", errors="replace")
+
+
+def get_git_log_as_jsonl(repo_url: str, output_file: Path):
+    repo_dir = repo_url.split("/")[-1].replace(".git", "")
+
+    print(f"Cloning repository from {repo_url}...")
+    try:
+        repo = git.Repo.clone_from(repo_url, repo_dir)
+    except git.exc.GitCommandError as e:
+        print(f"Error: Failed to clone repository. {e}")
+        return False
+
+    print("Generating JSONL file...")
+
+    try:
+        with open(output_file, "w", encoding="utf-8") as f:
+            for commit in repo.iter_commits("HEAD"):
+                commit_id = commit.hexsha
+                message = decode_bytes(commit.message.strip().encode())
+                if commit.parents:
+                    diffs = commit.diff(commit.parents[0], create_patch=True)
+                else:
+                    diffs = commit.diff(None, create_patch=True)
+
+                for diff in diffs:
+                    patch_text = decode_bytes(diff.diff)
+                    file_path = diff.a_path or diff.b_path
+
+                    if file_path:
+                        commit_data = {
+                            "id": commit_id,
+                            "patch": patch_text,
+                            "path": file_path,
+                            "author": {
+                                "name": commit.author.name,
+                                "email": commit.author.email,
+                                "date": commit.authored_datetime.isoformat(),
+                            },
+                            "committer": {
+                                "name": commit.committer.name,
+                                "email": commit.committer.email,
+                                "date": commit.committed_datetime.isoformat(),
+                            },
+                            "message": message,
+                        }
+                        f.write(json.dumps(commit_data, ensure_ascii=False) + "\n")
+
+    finally:
+        shutil.rmtree(repo_dir, ignore_errors=True)
+        print(f"Removed temporary directory {repo_dir}.")
+
+    print(f"Successfully converted git log to {output_file}.")
+    return True
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python3 git-log-to-jsonl.py <git_url> [<output_file>]")
+        sys.exit(1)
+
+    git_url = sys.argv[1]
+    output_filename = sys.argv[2] if len(sys.argv) > 2 else "commits.jsonl"
+
+    get_git_log_as_jsonl(git_url, Path(output_filename))
