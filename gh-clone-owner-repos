@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+owner="$1"
+gh api --paginate "users/${owner}/repos" --jq '.[].full_name' \
+  | xargs -P "$(nproc)" -I '{}' git clone --mirror 'git@github.com:{}.git' '{}.git'
