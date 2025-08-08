@@ -95,10 +95,12 @@ def get_git_log_as_jsonl(repo_path: str):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        logger.info("Usage: python3 <script_name>.py <local_repo_path>")
+    if len(sys.argv) == 1:
+        repo_path = "."
+    elif len(sys.argv) == 2:
+        repo_path = sys.argv[1]
+    else:
+        print("USAGE:\n\tgit-log-to-jsonl [repo-path]")
         sys.exit(1)
-
-    repo_path = sys.argv[1]
 
     get_git_log_as_jsonl(repo_path)

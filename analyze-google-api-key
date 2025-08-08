@@ -1,50 +1,119 @@
-#! /usr/bin/env python3
-import sys
+#!/usr/bin/env python3
 import json
-import requests
 import os
+import sys
+from concurrent.futures import ThreadPoolExecutor
 
-identity_url = (
-    "https://www.googleapis.com/identitytoolkit/v3/relyingparty/getProjectConfig"
-)
+import requests
 
+__doc__ = f"""
+USAGE
+    {os.path.basename(__file__)} <api-key> <project-id>
 
-def get_project_config(api_key):
+DESCRIPTION
+    Checks a Google Cloud API key against multiple services to determine its permissions.
+    It provides a summary of which APIs are accessible with the given key.
+"""
+
+# List of common GCP services and their API endpoints for a simple 'list' or 'get' check.
+# The placeholder '{project_id}' will be replaced by the script.
+SERVICE_ENDPOINTS = {
+    "Cloud Storage": "https://storage.googleapis.com/storage/v1/b?project={project_id}",
+    "Compute Engine": "https://compute.googleapis.com/compute/v1/projects/{project_id}/aggregated/instances",
+    "Cloud SQL": "https://sqladmin.googleapis.com/sql/v1beta4/projects/{project_id}/instances",
+    "BigQuery": "https://bigquery.googleapis.com/bigquery/v2/projects/{project_id}/datasets",
+    "Cloud Functions": "https://cloudfunctions.googleapis.com/v1/projects/{project_id}/locations/-/functions",
+    "Secret Manager": "https://secretmanager.googleapis.com/v1/projects/{project_id}/secrets",
+    "Cloud KMS": "https://cloudkms.googleapis.com/v1/projects/{project_id}/locations/-/keyRings",
+    "Cloud Run": "https://run.googleapis.com/v1/projects/{project_id}/locations/-/services",
+    "Pub/Sub": "https://pubsub.googleapis.com/v1/projects/{project_id}/topics",
+    "Maps Geocoding": "https://maps.googleapis.com/maps/api/geocode/json?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA",
+}
+
+def check_service(service_name, url, api_key):
+    """
+    Makes a request to a single GCP service endpoint to check for access.
+    """
+    headers = {"Authorization": f"Bearer {api_key}"}
+    params = {"key": api_key}
+
+    # Maps API uses a different auth mechanism (key in params)
+    if "maps.googleapis.com" in url:
+        headers = {}
+
     try:
-        response = requests.get(
-            identity_url,
-            headers={"Accept": "application/json"},
-            params={"key": api_key},
-            timeout=10,
-        )
+        resp = requests.get(url, headers=headers, params=params, timeout=10)
+        status_code = resp.status_code
+
+        if status_code == 200:
+            return service_name, {"status": "Accessible", "code": status_code}
+        elif status_code == 403:
+            # Forbidden indicates the key is valid but lacks permissions for this service.
+            return service_name, {"status": "Permission Denied", "code": status_code}
+        elif status_code == 401:
+            # Unauthorized often means the key is invalid or expired.
+             return service_name, {"status": "Unauthorized (Check Key)", "code": status_code}
+        elif status_code == 400 and "API key not valid" in resp.text:
+            return service_name, {"status": "Invalid API Key", "code": status_code}
+        else:
+            return service_name, {"status": "Error", "code": status_code, "response": resp.text[:100]}
+
     except requests.exceptions.RequestException as e:
-        return 500, {
-            "error": {
-                "message": str(e),
-            }
-        }
-
-    try:
-        return response.status_code, response.json()
-    except json.JSONDecodeError:
-        return response.status_code, {
-            "error": {
-                "message": "Could not decode JSON",
-                "response": response.text,
-            }
-        }
+        return service_name, {"status": "Request Failed", "error": str(e)}
 
 
-def analyze_google_api_key(api_key):
-    status_code, data = get_project_config(api_key)
-    valid = status_code in (200, 403)
-    print(json.dumps({"valid": valid, "analysis": data}, indent=2))
+def analyze(api_key, project_id):
+    """
+    Analyzes the API key by checking it against a list of GCP services concurrently.
+    """
+    results = {
+        "valid": False,
+        "analysis": {
+            "project_id": project_id,
+            "accessible_services": [],
+            "service_details": {},
+        },
+    }
+
+    endpoints_to_check = {
+        name: url.format(project_id=project_id)
+        for name, url in SERVICE_ENDPOINTS.items()
+    }
+
+    with ThreadPoolExecutor(max_workers=len(endpoints_to_check)) as executor:
+        futures = [
+            executor.submit(check_service, name, url, api_key)
+            for name, url in endpoints_to_check.items()
+        ]
+
+        for future in futures:
+            service_name, result = future.result()
+            results["analysis"]["service_details"][service_name] = result
+            if result["status"] == "Accessible":
+                results["valid"] = True
+                results["analysis"]["accessible_services"].append(service_name)
+
+    # If no services were directly accessible, check if any denied access,
+    # which still implies the key is valid.
+    if not results["valid"]:
+        for result in results["analysis"]["service_details"].values():
+            if result["status"] == "Permission Denied":
+                results["valid"] = True
+                break
+
+    return results
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage:\n    analyze-google-api-key <api_key>")
+    if len(sys.argv) != 3:
+        print(__doc__, file=sys.stderr)
         sys.exit(1)
 
-    api_key_to_check = sys.argv[1]
-    analyze_google_api_key(api_key_to_check)
+    api_key_arg, project_id_arg = sys.argv[1:]
+
+    # The script should be named 'analyze-google-cloud-api-key'
+    # Example usage:
+    # $ analyze-google-cloud-api-key <your-api-key> <your-project-id>
+
+    output = analyze(api_key_arg, project_id_arg)
+    print(json.dumps(output, indent=2))
