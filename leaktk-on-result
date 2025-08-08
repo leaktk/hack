@@ -22,8 +22,14 @@ def get_nested_value(data: Dict[str, Any], path: str) -> Union[str, None]:
 
     Returns None if any part of the path doesn't exist.
     """
+    # with archive support, paths may contain a ! to indicate there's an inner
+    # path. This deals with that for backwards compatibility
+    remove_inner_path = False
+    if path == "location.path":
+        remove_inner_path = True
+
     parts = path.split(".")
-    current = data
+    current: Any = data
 
     for part in parts:
         if isinstance(current, dict) and part in current:
@@ -31,7 +37,14 @@ def get_nested_value(data: Dict[str, Any], path: str) -> Union[str, None]:
         else:
             return None
 
-    return str(current) if current is not None else None
+    if current is None:
+        return current
+
+    current = str(current)
+    if remove_inner_path:
+        return current.split("!", 1)[0]
+
+    return current
 
 
 def replace_template_vars(command: str, data: Dict[str, Any]) -> str:
