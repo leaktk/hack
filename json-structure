@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+import json
+import sys
+
+from numbers import Number
+
+
+def typed_dedupe(x):
+    if isinstance(x, (list, tuple)):
+        return ("list", tuple(set(tuple(map(typed_dedupe, x)))))
+
+    if isinstance(x, dict):
+        return ("dict", tuple((key, typed_dedupe(value)) for key, value in x.items()))
+
+    if isinstance(x, Number):
+        return ("type", "number")
+
+    if isinstance(x, str):
+        return ("type", "string")
+
+    if isinstance(x, bool):
+        return ("type", "bool")
+
+    if isinstance(x, None):
+        return ("type", "null")
+
+    raise ValueError(f"unexpected type for {x}")
+
+
+def build_struct(info):
+    kind, sub_info = info
+
+    if kind == "dict":
+        return {key: build_struct(value) for key, value in sub_info}
+
+    if kind == "list":
+        return list(map(build_struct, sub_info))
+
+    return sub_info
+
+
+def obj_struct(x):
+    return build_struct(typed_dedupe(x))
+
+
+print(json.dumps(obj_struct(json.load(sys.stdin)), indent=2))
