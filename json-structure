@@ -21,7 +21,7 @@ def typed_dedupe(x):
     if isinstance(x, bool):
         return ("type", "bool")
 
-    if isinstance(x, None):
+    if x is None:
         return ("type", "null")
 
     raise ValueError(f"unexpected type for {x}")
@@ -43,4 +43,9 @@ def obj_struct(x):
     return build_struct(typed_dedupe(x))
 
 
-print(json.dumps(obj_struct(json.load(sys.stdin)), indent=2))
+if len(sys.argv) == 2 and sys.argv[1] == "-l":
+    data = list(map(json.loads, sys.stdin))
+else:
+    data = json.load(sys.stdin)
+
+print(json.dumps(obj_struct(data), indent=2))
