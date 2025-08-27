@@ -8,63 +8,70 @@ import sys
 import requests
 import xml.etree.ElementTree as ET
 
+
 def run_nmap_scan(ip_str: str) -> dict:
     scan_results = {}
-    command = ['sudo', 'nmap', '-sV', '-O', '-oX', '-', ip_str]
+    command = ["sudo", "nmap", "-sV", "-O", "-oX", "-", ip_str]
 
     try:
         nmap_xml_output = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=300
+            command, capture_output=True, text=True, check=True, timeout=300
         ).stdout
 
         root = ET.fromstring(nmap_xml_output)
-        host = root.find('host')
+        host = root.find("host")
         if host is not None:
-            status = host.find('status')
-            scan_results['status'] = {
-                'state': status.get('state'),
-                'reason': status.get('reason')
+            status = host.find("status")
+            scan_results["status"] = {
+                "state": status.get("state"),
+                "reason": status.get("reason"),
             }
 
             ports = []
-            port_elements = host.find('ports')
+            port_elements = host.find("ports")
             if port_elements is not None:
-                for port_elem in port_elements.findall('port'):
-                    state_elem = port_elem.find('state')
-                    service_elem = port_elem.find('service')
+                for port_elem in port_elements.findall("port"):
+                    state_elem = port_elem.find("state")
+                    service_elem = port_elem.find("service")
                     port_info = {
-                        'port_id': int(port_elem.get('portid')),
-                        'protocol': port_elem.get('protocol'),
-                        'state': state_elem.get('state'),
-                        'reason': state_elem.get('reason'),
-                        'service': {
-                            'name': service_elem.get('name'),
-                            'product': service_elem.get('product'),
-                            'version': service_elem.get('version'),
-                            'extrainfo': service_elem.get('extrainfo'),
-                            'method': service_elem.get('method'),
-                            'conf': int(service_elem.get('conf')) if service_elem.get('conf') else None
-                        } if service_elem is not None else {}
+                        "port_id": int(port_elem.get("portid")),
+                        "protocol": port_elem.get("protocol"),
+                        "state": state_elem.get("state"),
+                        "reason": state_elem.get("reason"),
+                        "service": (
+                            {
+                                "name": service_elem.get("name"),
+                                "product": service_elem.get("product"),
+                                "version": service_elem.get("version"),
+                                "extrainfo": service_elem.get("extrainfo"),
+                                "method": service_elem.get("method"),
+                                "conf": (
+                                    int(service_elem.get("conf"))
+                                    if service_elem.get("conf")
+                                    else None
+                                ),
+                            }
+                            if service_elem is not None
+                            else {}
+                        ),
                     }
                     ports.append(port_info)
-            scan_results['ports'] = ports
+            scan_results["ports"] = ports
 
-            os_elem = host.find('os')
-            if os_elem is not None and os_elem.find('osmatch') is not None:
-                os_match = os_elem.find('osmatch')
-                scan_results['os'] = {
-                    'name': os_match.get('name'),
-                    'accuracy': int(os_match.get('accuracy')),
+            os_elem = host.find("os")
+            if os_elem is not None and os_elem.find("osmatch") is not None:
+                os_match = os_elem.find("osmatch")
+                scan_results["os"] = {
+                    "name": os_match.get("name"),
+                    "accuracy": int(os_match.get("accuracy")),
                 }
         else:
-            scan_results['error'] = 'Could not find host information in Nmap output.'
+            scan_results["error"] = "Could not find host information in Nmap output."
 
     except FileNotFoundError:
-        return {"error": "Nmap command not found. Please install nmap and ensure it's in your PATH."}
+        return {
+            "error": "Nmap command not found. Please install nmap and ensure it's in your PATH."
+        }
     except subprocess.CalledProcessError as e:
         # This catches errors from the nmap command itself, like an invalid IP.
         return {"error": f"Nmap scan failed: {e.stderr}"}
@@ -79,10 +86,7 @@ def run_nmap_scan(ip_str: str) -> dict:
 
 
 def analyze(ip_str: str) -> dict:
-    analysis_results = {
-        "valid": False,
-        "analysis": {}
-    }
+    analysis_results = {"valid": False, "analysis": {}}
 
     try:
         ip_obj = ipaddress.ip_address(ip_str)
@@ -94,11 +98,10 @@ def analyze(ip_str: str) -> dict:
     analysis_results["analysis"]["local_ip"] = ip_obj.is_loopback
     analysis_results["analysis"]["multicast_ip"] = ip_obj.is_multicast
     analysis_results["analysis"]["global_ip"] = ip_obj.is_global
-    analysis_results["analysis"]["scan_results"] = {
-        "nmap": run_nmap_scan(ip_str)
-    }
+    analysis_results["analysis"]["scan_results"] = {"nmap": run_nmap_scan(ip_str)}
 
     return analysis_results
+
 
 def main():
     """
@@ -106,13 +109,13 @@ def main():
     """
     parser = argparse.ArgumentParser(
         description="Analyze an IP address using Nmap.",
-        epilog="Example: analyze-ip 8.8.8.8"
+        epilog="Example: analyze-ip 8.8.8.8",
     )
     parser.add_argument("ip", help="The IP address to analyze.")
     args = parser.parse_args()
     results = analyze(args.ip)
     print(json.dumps(results, indent=4))
 
+
 if __name__ == "__main__":
     main()
-

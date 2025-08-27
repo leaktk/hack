@@ -30,6 +30,7 @@ SERVICE_ENDPOINTS = {
     "Maps Geocoding": "https://maps.googleapis.com/maps/api/geocode/json?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA",
 }
 
+
 def check_service(service_name, url, api_key):
     """
     Makes a request to a single GCP service endpoint to check for access.
@@ -52,11 +53,18 @@ def check_service(service_name, url, api_key):
             return service_name, {"status": "Permission Denied", "code": status_code}
         elif status_code == 401:
             # Unauthorized often means the key is invalid or expired.
-             return service_name, {"status": "Unauthorized (Check Key)", "code": status_code}
+            return service_name, {
+                "status": "Unauthorized (Check Key)",
+                "code": status_code,
+            }
         elif status_code == 400 and "API key not valid" in resp.text:
             return service_name, {"status": "Invalid API Key", "code": status_code}
         else:
-            return service_name, {"status": "Error", "code": status_code, "response": resp.text[:100]}
+            return service_name, {
+                "status": "Error",
+                "code": status_code,
+                "response": resp.text[:100],
+            }
 
     except requests.exceptions.RequestException as e:
         return service_name, {"status": "Request Failed", "error": str(e)}

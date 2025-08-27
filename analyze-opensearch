@@ -11,26 +11,38 @@ def check_permissions(host, auth):
     """
     try:
         # First, check if the security plugin is loaded
-        plugins_response = requests.get(f"{host}/_cat/plugins?format=json", auth=auth, timeout=5)
+        plugins_response = requests.get(
+            f"{host}/_cat/plugins?format=json", auth=auth, timeout=5
+        )
         plugins_response.raise_for_status()
         plugins = plugins_response.json()
-        security_plugin_present = any(p.get('component') == 'opensearch-security' for p in plugins)
+        security_plugin_present = any(
+            p.get("component") == "opensearch-security" for p in plugins
+        )
 
         if not security_plugin_present:
-            return {"message": "OpenSearch Security plugin not detected. Permissions cannot be checked."}
+            return {
+                "message": "OpenSearch Security plugin not detected. Permissions cannot be checked."
+            }
 
         # If security plugin is present, get the account details
-        account_response = requests.get(f"{host}/_plugins/_security/api/account", auth=auth, timeout=5)
+        account_response = requests.get(
+            f"{host}/_plugins/_security/api/account", auth=auth, timeout=5
+        )
         account_response.raise_for_status()
         return account_response.json()
     except requests.exceptions.HTTPError as http_err:
         if http_err.response.status_code == 401 or http_err.response.status_code == 403:
-            return {"error": "Authentication failed. Insufficient permissions to check credentials."}
+            return {
+                "error": "Authentication failed. Insufficient permissions to check credentials."
+            }
         return {"error": f"HTTP error while checking permissions: {http_err}"}
     except requests.exceptions.RequestException as req_err:
         return {"error": f"Request exception while checking permissions: {req_err}"}
     except Exception as e:
-        return {"error": f"An unexpected error occurred while checking permissions: {e}"}
+        return {
+            "error": f"An unexpected error occurred while checking permissions: {e}"
+        }
 
 
 def analyze_opensearch(host, username, password):
@@ -39,9 +51,7 @@ def analyze_opensearch(host, username, password):
     analysis = {}
 
     try:
-        response = requests.get(
-            f"{host}/_cluster/health", auth=auth, timeout=5
-        )
+        response = requests.get(f"{host}/_cluster/health", auth=auth, timeout=5)
 
         response.raise_for_status()
         health_data = response.json()
@@ -54,7 +64,6 @@ def analyze_opensearch(host, username, password):
             "active_shards": health_data.get("active_shards"),
             "permissions": check_permissions(host, auth),
         }
-
 
         # Attempt to list indices
         indices_response = requests.get(
@@ -73,7 +82,9 @@ def analyze_opensearch(host, username, password):
             "error": str(http_err),
             "status_code": response.status_code if "response" in locals() else "N/A",
         }
-        if "response" in locals() and (response.status_code == 401 or response.status_code == 403):
+        if "response" in locals() and (
+            response.status_code == 401 or response.status_code == 403
+        ):
             analysis["reason"] = "Authentication failed (Unauthorized or Forbidden)"
         else:
             analysis["reason"] = "HTTP error"

@@ -12,6 +12,7 @@ DESCRIPTION:
     Validates an Nx Cloud access token by fetching the associated user profile.
 """
 
+
 def analyze(access_token):
     """
     Analyzes the given Nx Cloud access token.
@@ -44,6 +45,7 @@ def analyze(access_token):
         results["error"] = {"message": f"Request failed: {e}"}
 
     return results
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

@@ -11,7 +11,7 @@ def analyze_openshift_token(base_url, token):
     if not base_url.startswith("http"):
         base_url = "https://" + base_url
 
-    if '.apps.' in base_url:
+    if ".apps." in base_url:
         base_url = f"https://api.{base_url.split('.apps.', 1)[1]}:6443"
 
     api_url = base_url + "/apis/user.openshift.io/v1/users/~"
