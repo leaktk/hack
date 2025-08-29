@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+import sys
+import requests
+import json
+
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Any
+
+import gnupg
+
+
+def _key_found(keyid: str) -> bool:
+    if not keyid:
+        return False
+
+    resp = requests.head(f"https://keys.openpgp.org/vks/v1/by-keyid/{keyid}")
+    return resp.status_code < 300
+
+
+def not_empty(v):
+    try:
+        return len(v) > 0
+    except Exception:
+        return v is not None
+
+
+def remove_empty(obj):
+    if isinstance(obj, dict):
+        return {k: remove_empty(v) for k, v in obj.items() if not_empty(v)}
+
+    if isinstance(obj, (list, tuple)):
+        return list(filter(not_empty, map(remove_empty, obj)))
+
+    return obj
+
+
+def analyze(keys_path: Path) -> Iterable[dict[str, Any]]:
+    if not keys_path.is_file():
+        return {
+            "valid": None,
+            "error": {
+                "code": 1,
+                "message": "invalid key file path",
+                "data": str(keys_path),
+            },
+        }
+
+    gpg = gnupg.GPG()
+    results = []
+
+    for key in map(remove_empty, gpg.scan_keys(keys_path)):
+        keyid = key.get("keyid")
+        valid = None
+
+        if not keyid:
+            valid = False
+        elif _key_found(keyid):
+            valid = True
+
+        yield {
+            "valid": valid,
+            "analysis": {
+                "details": key,
+            },
+        }
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 1:
+        print("USAGE:\n\tanalyze-gpg-private-keys [<keys-file-path, ...]")
+        sys.exit(1)
+
+    results = [
+        result for keys_path in map(Path, sys.argv[1:]) for result in analyze(keys_path)
+    ]
+
+    for result in results:
+        print(json.dumps(result, indent=2))
