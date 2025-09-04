@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# USAGE
+#     scan-and-redact-files-in-place <scan-dir>
+#
+# DESCRIPTION
+#     Scan files in
+set -euo pipefail
+scan_dir="$1"
+
+if ! [[ -d "${scan_dir}" ]]
+then
+  echo "The scan dir must be a directory"
+  exit 1
+fi
+
+scripts_dir="$(mktemp -d)"
+trap 'rm -rf --preserve-root "${scripts_dir}"' EXIT
+
+if ! git clone --depth 1 https://github.com/leaktk/hack.git "${scripts_dir}" &> /dev/null
+then
+  echo "Could not clone deps"
+  exit 1
+fi
+
+leaktk scan --kind Files "${scan_dir}" \
+  | "${scripts_dir}/leaktk-on-result" \
+    "${scan_dir}" \
+    "${scripts_dir}/redact-in-place-for" \
+      '{{location.path}}' \
+      'L{{location.start.line}}C{{location.start.column}}-L{{location.end.line}}C{{location.end.column}}'
