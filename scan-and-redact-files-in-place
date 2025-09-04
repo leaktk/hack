@@ -3,7 +3,8 @@
 #     scan-and-redact-files-in-place <scan-dir>
 #
 # DESCRIPTION
-#     Scan files in
+#     Scan files in the <scan-dir> directory and remove secrets in place
+#     in those files by replacing them with X's.
 set -euo pipefail
 scan_dir="$1"
 
