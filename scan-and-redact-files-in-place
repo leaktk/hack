@@ -26,4 +26,4 @@ leaktk scan --kind Files . \
   | "${scripts_dir}/leaktk-on-result" . \
     "${scripts_dir}/redact-in-place-for" \
       '{{location.path}}' \
-      'L{{location.start.line}}C{{location.start.column}}-L{{location.end.line}}C{{location.end.column}}'
+      'L{{location.start.line}}-L{{location.end.line}}'
