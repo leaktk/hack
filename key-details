@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# USAGE
+#       key-details < key.pem
+# DESCRIPTION
+#       Display details about a private key and convert \n to normal newlines
+sed -e 's/\\n/\n/g' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | openssl pkey -text -noout
