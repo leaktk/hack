@@ -3,8 +3,9 @@
 import os
 import sys
 import json
-from pathlib import Path
 import logging
+
+from pathlib import Path
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -20,7 +21,6 @@ except ModuleNotFoundError:
 
 # Attempts to decode bytes using a list of common encodings.
 def decode_bytes(data: bytes) -> str:
-
     encodings_to_try = [
         "utf-8",
         "latin-1",
@@ -39,8 +39,7 @@ def decode_bytes(data: bytes) -> str:
 
 
 # Opens a local git repository, converts its log to a JSONL file.
-def get_git_log_as_jsonl(repo_path: str):
-
+def get_git_log_as_jsonl(repo_path: str, include_patch: bool =False):
     logger.info(f"Opening repository at {repo_path}...")
     try:
         repo = git.Repo(repo_path)
@@ -51,42 +50,61 @@ def get_git_log_as_jsonl(repo_path: str):
         return False
 
     logger.info("Generating JSONL file...")
-
     try:
-
         for commit in repo.iter_commits("--all"):
             commit_id = commit.hexsha
             message = decode_bytes(commit.message.strip().encode())
 
-            # Handling diffs for the first commit vs. subsequent commits
-            if commit.parents:
-                diffs = commit.diff(commit.parents[0], create_patch=True)
+            if not include_patch:
+                commit_data = {
+                    "id": commit_id,
+                    "author": {
+                        "name": commit.author.name,
+                        "email": commit.author.email,
+                        "date": commit.authored_datetime.isoformat(),
+                    },
+                    "committer": {
+                        "name": commit.committer.name,
+                        "email": commit.committer.email,
+                        "date": commit.committed_datetime.isoformat(),
+                    },
+                    "message": message,
+                    "repo": repo_path,
+                }
+                json.dump(commit_data, sys.stdout, ensure_ascii=False)
+                sys.stdout.write("\n")
             else:
-                diffs = commit.diff(None, create_patch=True)
+                # Handling diffs for the first commit vs. subsequent commits
+                if commit.parents:
+                    diffs = commit.diff(commit.parents[0], create_patch=True)
+                else:
+                    diffs = commit.diff(None, create_patch=True)
 
-            for diff in diffs:
-                patch_text = decode_bytes(diff.diff)
-                # Use a_path or b_path depending on if the file was added/deleted
-                file_path = diff.b_path if diff.b_path else diff.a_path
+                for diff in diffs:
+                    patch_text = decode_bytes(diff.diff)
+                    # Use a_path or b_path depending on if the file was added/deleted
+                    file_path = diff.b_path if diff.b_path else diff.a_path
 
-                if file_path:
-                    commit_data = {
-                        "id": commit_id,
-                        "patch": patch_text,
-                        "path": file_path,
-                        "author": {
-                            "name": commit.author.name,
-                            "email": commit.author.email,
-                            "date": commit.authored_datetime.isoformat(),
-                        },
-                        "committer": {
-                            "name": commit.committer.name,
-                            "email": commit.committer.email,
-                            "date": commit.committed_datetime.isoformat(),
-                        },
-                        "message": message,
-                    }
-                    print(json.dumps(commit_data, ensure_ascii=False))
+                    if file_path:
+                        commit_data = {
+                            "id": commit_id,
+                            "patch": patch_text,
+                            "path": file_path,
+                            "author": {
+                                "name": commit.author.name,
+                                "email": commit.author.email,
+                                "date": commit.authored_datetime.isoformat(),
+                            },
+                            "committer": {
+                                "name": commit.committer.name,
+                                "email": commit.committer.email,
+                                "date": commit.committed_datetime.isoformat(),
+                            },
+                            "message": message,
+                            "repo": repo_path,
+                        }
+                        json.dump(commit_data, sys.stdout, ensure_ascii=False)
+                        sys.stdout.write("\n")
 
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
@@ -95,12 +113,16 @@ def get_git_log_as_jsonl(repo_path: str):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 1:
-        repo_path = "."
-    elif len(sys.argv) == 2:
-        repo_path = sys.argv[1]
-    else:
-        print("USAGE:\n\tgit-log-to-jsonl [repo-path]")
-        sys.exit(1)
+    args = []
+    kwargs = {}
 
-    get_git_log_as_jsonl(repo_path)
+    for arg in sys.argv[1:]:
+        match arg:
+            case "--include-patch":
+                kwargs["include_patch"] = True
+            case _:
+                args.append(arg)
+
+    repo_paths = args or ["."]
+    for repo_path in repo_paths:
+        get_git_log_as_jsonl(repo_path, **kwargs)
