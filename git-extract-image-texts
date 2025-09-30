@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import json
+import logging
+import mimetypes
+import shutil
+import subprocess
+
+from pathlib import Path
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+tesseract_path = shutil.which("tesseract")
+if tesseract_path == None:
+    logger.error("please ensure tesseract is on your path")
+    sys.exit(1)
+
+try:
+    import git
+except ModuleNotFoundError:
+    logger.error("please install GitPython to use this script")
+    sys.exit(1)
+
+def extract_text(commit_id, path):
+    with subprocess.Popen(
+        ('git', 'show', f'{commit_id}:{path}'),
+        text=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    ) as git_show:
+        return subprocess.check_output(
+            (tesseract_path, '-', '-'),
+            stdin=git_show.stdout,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+
+
+def get_git_image_text_as_jsonl(repo_path: str):
+    logger.info(f"Opening repository at {repo_path}...")
+    try:
+        repo = git.Repo(repo_path)
+    except git.exc.InvalidGitRepositoryError:
+        logger.error(
+            f"Error: Path '{repo_path}' does not contain a valid git repository."
+        )
+        return False
+
+    logger.info("Generating JSONL file...")
+    data = {}
+    try:
+        for commit in repo.iter_commits("--all"):
+            commit_id = commit.hexsha
+            for item in commit.tree.traverse():
+                if not isinstance(item, git.Blob):
+                    continue
+
+                mimetype, encoding = mimetypes.guess_type(item.path)
+                if not (mimetype and mimetype.startswith("image/")):
+                    continue
+
+                if encoding is not None:
+                    logger.warning("skipping encoded item: encoding=%s path=%s", encoding, item.path)
+                    continue
+
+                try:
+                    text = extract_text(commit_id, item.path)
+                    path, filename = os.path.split(item.path)
+                    loc_in_data = data
+
+                    # dump the data like {"commit": {"path": {"to": {"image.png": "text"}}}}
+                    for part in [commit_id] + path.lstrip('/').split('/'):
+                        if not part:
+                            continue
+
+                        if part not in loc_in_data:
+                            loc_in_data[part] = {}
+
+                        loc_in_data = loc_in_data[part]
+
+                    loc_in_data[filename] = text
+                except Exception as e:
+                    logger.error("could not extract text: %s", e)
+
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
+        return False
+
+    if data:
+        print(json.dumps(data))
+
+    return True
+
+
+if __name__ == "__main__":
+    repo_paths = sys.argv[1:] or ["."]
+
+    for repo_path in repo_paths:
+        get_git_image_text_as_jsonl(repo_path)
