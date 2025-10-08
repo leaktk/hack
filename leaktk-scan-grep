@@ -1,0 +1,19 @@
+#! /usr/bin/env bash
+# NAME
+#     leakkt-scan-grep
+# USAGE
+#     leaktk-scan-grep pattern filepath
+#
+# DEPENDENCIES
+#     This script requires the following extra commands:
+#       - leaktk
+#       - jq
+#
+# DESCRIPTION
+#     Runs leaktk with a single regex on a file or directory. This allows you
+#     to find decoded values or values in archives
+#
+#     Archive paths will contain a '!' separator
+
+set -euo pipefail
+echo -e "[[rules]]\nid='grep'\nregex='''$1'''" | leaktk scan --gitleaks-config=/dev/stdin --kind Files $2 | jq
