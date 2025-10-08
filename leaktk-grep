@@ -1,8 +1,8 @@
 #! /usr/bin/env bash
 # NAME
-#     leakkt-scan-grep
+#     leakkt-grep
 # USAGE
-#     leaktk-scan-grep pattern filepath
+#     leaktk-grep pattern filepath
 #
 # DEPENDENCIES
 #     This script requires the following extra commands:
