@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+
+from http import HTTPStatus
+
+import requests
+
+__doc__ = f"""
+USAGE
+    {os.path.basename(__file__)} <api-token>
+
+DESCRIPTION
+    Validates a Slack API token (xoxb- or xoxp-) by calling auth.test.
+"""
+
+
+def error(message, **kwargs):
+    return {"message": message, **kwargs}
+
+
+def analyze(api_token):
+    headers = {"Authorization": f"Bearer {api_token}"}
+    results = {
+        "valid": False,
+        "analysis": {},
+    }
+
+    try:
+        # Check the token's validity and identity
+        resp = requests.post("https://slack.com/api/auth.test", headers=headers)
+        results["analysis"]["status_code"] = resp.status_code
+
+        try:
+            results["analysis"]["status"] = HTTPStatus(resp.status_code).phrase
+        except ValueError:
+            results["analysis"]["status"] = "Unknown"
+
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("ok"):
+                results["valid"] = True
+                results["analysis"]["user"] = data.get("user")
+                results["analysis"]["user_id"] = data.get("user_id")
+                results["analysis"]["team"] = data.get("team")
+                results["analysis"]["team_id"] = data.get("team_id")
+                results["analysis"]["bot_id"] = data.get("bot_id")
+            else:
+                # Token is syntactically valid but unauthorized (e.g., revoked)
+                results["valid"] = False
+                results["analysis"]["error"] = data.get("error", "invalid_auth")
+        else:
+            raw = resp.text
+            if len(raw) > 128:
+                raw = raw[:125] + "..."
+
+            results["analysis"]["raw"] = raw
+            results["error"] = error(
+                "unexpected response",
+                code=resp.status_code,
+            )
+    except requests.exceptions.RequestException as e:
+        results["error"] = error(f"request failed: {e}")
+
+    return results
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(__doc__)
+        sys.exit(1)
+
+    print(json.dumps(analyze(*sys.argv[1:])))
