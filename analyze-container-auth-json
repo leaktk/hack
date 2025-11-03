@@ -61,8 +61,6 @@ def analyze_auth_info(host, auth_info):
     match resp.status_code:
         case 200:
             result["valid"] = True
-        case 401:
-            result["valid"] = True
         case _:
             return with_error(
                 result,
