@@ -48,11 +48,28 @@ def analyze_auth_info(host, auth_info):
 
     username, password = token.split(":", 1)
     analysis["username"] = username
+    params = {}
 
+    if "docker" in host:
+        url = "https://auth.docker.io/token"
+    elif "quay" in host:
+        url = f"https://{host}/v2/auth"
+    elif "redhat" in host:
+        url = "https://sso.redhat.com/auth/realms/rhcc/protocol/redhat-docker-v2/auth"
+        params = {
+        'service': 'docker-registry',
+        'client_id': 'validate-token',
+        'scope': 'repository:rhel:pull'
+        }
+
+    else:
+        url = f"https://{host}/v2"
     try:
         resp = requests.get(
-            f"https://{host}/v2/",
+            url,
             auth=(username, password),
+            allow_redirects=True,
+            params=params,
             timeout=10,
         )
     except RequestException:
@@ -60,8 +77,6 @@ def analyze_auth_info(host, auth_info):
 
     match resp.status_code:
         case 200:
-            result["valid"] = True
-        case 401:
             result["valid"] = True
         case _:
             return with_error(
