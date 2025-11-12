@@ -22,6 +22,24 @@ def with_error(result, message, **kwargs):
     }
 
 
+def auth_info_creds(auth_info):
+    encoded_token = auth_info.get("auth")
+    if encoded_token:
+        try:
+            token = base64.b64decode(encoded_token).decode("utf-8")
+        except Exception as e:
+            raise ValueError("could not decode token") from e
+
+        username, password = token.split(":", 1)
+    elif "username" in auth_info and "password" in auth_info:
+        username = auth_info["username"]
+        password = auth_info["password"]
+    else:
+        raise ValueError("could not find auth information")
+
+    return username, password
+
+
 def analyze_auth_info(host, auth_info):
     """
     perform analyzis on each auth_info
@@ -37,16 +55,11 @@ def analyze_auth_info(host, auth_info):
     if "email" in auth_info:
         analysis["email"] = auth_info["email"]
 
-    encoded_token = auth_info.get("auth")
-    if not encoded_token:
-        return with_error(result, "missing auth token")
-
     try:
-        token = base64.b64decode(encoded_token).decode("utf-8")
-    except Exception:
-        return with_error(result, "could not decode token")
+        username, password = auth_info_creds(auth_info)
+    except Exception as e:
+        return with_error(result, str(e))
 
-    username, password = token.split(":", 1)
     analysis["username"] = username
     params = {}
 
@@ -57,9 +70,9 @@ def analyze_auth_info(host, auth_info):
     elif "redhat" in host:
         url = "https://sso.redhat.com/auth/realms/rhcc/protocol/redhat-docker-v2/auth"
         params = {
-        'service': 'docker-registry',
-        'client_id': 'validate-token',
-        'scope': 'repository:rhel:pull'
+            "service": "docker-registry",
+            "client_id": "validate-token",
+            "scope": "repository:rhel:pull",
         }
 
     else:
