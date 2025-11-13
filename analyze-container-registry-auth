@@ -16,11 +16,14 @@ USAGE:
     {os.path.basename(sys.argv[0])} <hostname> <username> <password>
 
 DESCRIPTION
-    Analyze container registry auth either in a containers-auth.json format,
-    hostname & base64(username:password) format, or
-    hostname, username & password.
+    Analyze container registry auth by any of these methods:
 
-    The containers-auth.json will analyze all credentials in the file.
+    1) Reading a containers-auth.json file
+    2) Accepting hostname and auth (i.e. base64(username:password))
+    3) Accepting hostname, username, and password
+
+    The containers-auth.json option will analyze all auths in the file and print
+    the results out in the order that they appear in the file.
 """
 
 
