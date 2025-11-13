@@ -9,6 +9,20 @@ import requests
 
 from requests.exceptions import RequestException
 
+USAGE = f"""
+USAGE:
+    {os.path.basename(sys.argv[0])} <containers-auth-json-filepath>
+    {os.path.basename(sys.argv[0])} <hostname> <auth>
+    {os.path.basename(sys.argv[0])} <hostname> <username> <password>
+
+DESCRIPTION
+    Analyze container registry auth either in a containers-auth.json format,
+    hostname & base64(username:password) format, or
+    hostname, username & password.
+
+    The containers-auth.json will analyze all credentials in the file.
+"""
+
 
 def with_error(result, message, **kwargs):
     """
@@ -101,21 +115,27 @@ def analyze_auth_info(host, auth_info):
     return result
 
 
-def analyze(auth_file_path):
-    with open(auth_file_path, encoding="UTF-8") as auth_file:
-        config = json.load(auth_file)
-
+def analyze(config):
     for host, auth_info in config["auths"].items():
         yield analyze_auth_info(host, auth_info)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print(
-            f"USAGE:\n\t{os.path.basename(sys.argv[0])} /path/to/auth.json",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    match len(sys.argv):
+        case 2:  # <containers-auth-json-filepath>
+            with open(sys.argv[1]) as containers_auth_json_file:
+                config = json.load(containers_auth_json_file)
+        case 3:  # <hostname> <auth>
+            config = {"auths": {sys.argv[1]: {"auth": sys.argv[2]}}}
+        case 4:  # <hostname> <username> <password>
+            config = {
+                "auths": {
+                    sys.argv[1]: {"username": sys.argv[2], "password": sys.argv[3]}
+                }
+            }
+        case _:
+            print(USAGE, file=sys.stderr)
+            sys.exit(1)
 
-    for result in analyze(sys.argv[1]):
+    for result in analyze(config):
         print(json.dumps(result, indent=2))
