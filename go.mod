@@ -3,6 +3,7 @@ module github.com/leaktk/hack
 go 1.24.2
 
 require (
+	github.com/BobuSumisu/aho-corasick v1.0.3
 	github.com/h2non/filetype v1.1.3
 	github.com/zricethezav/gitleaks/v8 v8.27.2
 )

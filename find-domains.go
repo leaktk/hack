@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -13,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	ahocorasick "github.com/BobuSumisu/aho-corasick"
 )
 
 var tlds = []string{
@@ -211,27 +212,23 @@ var tlds = []string{
 }
 
 var domainPattern *regexp.Regexp
+var prefilter *ahocorasick.Trie
 
 func init() {
+	trieBuilder := ahocorasick.NewTrieBuilder()
+	for _, tld := range tlds {
+		trieBuilder.AddString("." + tld)
+	}
+	prefilter = trieBuilder.Build()
+
 	// Sort reversed so longest match is selected
 	sort.Sort(sort.Reverse(sort.StringSlice(tlds)))
 	domainPattern = regexp.MustCompile(fmt.Sprintf(
-		`(?i)\b(?:[a-z0-9][a-z0-9-]{1,61}[a-z0-9]\.)+(?:%s\b)`,
+		`\b(?:[a-z0-9][a-z0-9-]{1,61}[a-z0-9]\.)+(?:%s\b)`,
 		strings.Join(tlds, "|"),
 	))
 }
 
-func readLine(reader *bufio.Reader) ([]byte, error) {
-	var buf bytes.Buffer
-	for {
-		line, isPrefix, err := reader.ReadLine()
-		buf.Write(line)
-
-		if err != nil || !isPrefix {
-			return buf.Bytes(), err
-		}
-	}
-}
 
 func validDomain(hostname string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
@@ -250,21 +247,26 @@ func validDomain(hostname string) bool {
 func main() {
 	reader := bufio.NewReader(os.Stdin)
 	seen := map[string]bool{}
+	buf := make([]byte, 4096 * 1024)
 
 	for {
-		line, err := readLine(reader)
-		matches := domainPattern.FindAll(line, -1)
-		if len(matches) > 0 {
-			for _, match := range matches {
-				potentialDomain := string(match)
+		n, err := reader.Read(buf)
+		block := buf[:n]
 
-				if _, wasSeen := seen[potentialDomain]; wasSeen {
-					continue
-				}
+		if len(block) > 0 && len(prefilter.MatchString(string(block))) > 0 {
+			matches := domainPattern.FindAll(block, -1)
+			if len(matches) > 0 {
+				for _, match := range matches {
+					potentialDomain := string(match)
 
-				seen[potentialDomain] = true
-				if validDomain(potentialDomain) {
-					fmt.Println(potentialDomain)
+					if _, wasSeen := seen[potentialDomain]; wasSeen {
+						continue
+					}
+
+					seen[potentialDomain] = true
+					if validDomain(potentialDomain) {
+						fmt.Println(potentialDomain)
+					}
 				}
 			}
 		}
