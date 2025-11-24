@@ -43,9 +43,13 @@ def enrich_auth_info(auth_info):
     auth = auth_info.get("auth")
     if auth:
         try:
-            missing_padding = -len(auth) % 4
-            if missing_padding > 0:
-                auth += '=' * missing_padding
+            auth = auth.rstrip('=')
+            auth += '=' * (-len(auth) % 4)
+
+            # janky b64 that we're just going to drop the last char on to see
+            # what we can recover from it
+            if auth.endswith('==='):
+                auth = auth[:-4]
 
             user_pass = base64.b64decode(auth).decode(errors='ignore').split(":", 1)
         except Exception as e:
