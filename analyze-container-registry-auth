@@ -43,7 +43,7 @@ def enrich_auth_info(auth_info):
     auth = auth_info.get("auth")
     if auth:
         try:
-            user_pass = base64.b64decode(auth).decode().split(":", 1)
+            user_pass = base64.b64decode(auth).decode(errors='ignore').split(":", 1)
         except Exception as e:
             raise ValueError("could not decode token") from e
 
@@ -58,7 +58,7 @@ def enrich_auth_info(auth_info):
         username = auth_info["username"]
         password = auth_info["password"]
         user_col_pass = f"{username}:{password}".encode("UTF-8")
-        auth_info["auth"] = base64.b64encode(user_col_pass).decode()
+        auth_info["auth"] = base64.b64encode(user_col_pass).decode(errors='ignore')
     else:
         raise ValueError("could not find auth information")
 
