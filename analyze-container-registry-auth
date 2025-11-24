@@ -50,6 +50,9 @@ def enrich_auth_info(auth_info):
         if len(user_pass) == 2:
             auth_info["username"] = user_pass[0]
             auth_info["password"] = user_pass[1]
+        else:
+            auth_info["username"] = ""
+            auth_info["password"] = ""
 
     elif "username" in auth_info and "password" in auth_info:
         username = auth_info["username"]
@@ -75,8 +78,7 @@ def analyze_auth_info(host, auth_info):
     }
 
     auth_info = enrich_auth_info(auth_info)
-    analysis["username"] = auth_info.get("username")
-    analysis["email"] = auth_info.get("email")
+    analysis.update(auth_info)
     params = {}
 
     if "docker" in host:
@@ -125,21 +127,36 @@ def analyze(config):
 
 
 if __name__ == "__main__":
-    match len(sys.argv):
-        case 2:  # <containers-auth-json-filepath>
-            with open(sys.argv[1]) as containers_auth_json_file:
+    flags = {}
+    args = []
+    argv = iter(sys.argv[1:])
+
+    for arg in argv:
+        if arg.startswith("--"):
+            key = arg[2:]
+            if "=" in key:
+                key, value = key.split("=", 1)
+            else:
+                value = next(argv)
+
+            flags[key] = value
+        else:
+            args.append(arg)
+
+    match len(args):
+        case 1:  # <containers-auth-json-filepath>
+            with open(args[0]) as containers_auth_json_file:
                 config = json.load(containers_auth_json_file)
-        case 3:  # <hostname> <auth>
-            config = {"auths": {sys.argv[1]: {"auth": sys.argv[2]}}}
-        case 4:  # <hostname> <username> <password>
-            config = {
-                "auths": {
-                    sys.argv[1]: {"username": sys.argv[2], "password": sys.argv[3]}
-                }
-            }
+        case 2:  # <hostname> <auth>
+            config = {"auths": {args[0]: {"auth": args[1]}}}
+        case 3:  # <hostname> <username> <password>
+            config = {"auths": {args[0]: {"username": args[1], "password": args[2]}}}
         case _:
             print(USAGE, file=sys.stderr)
             sys.exit(1)
 
     for result in analyze(config):
-        print(json.dumps(result, indent=2))
+        if "format" not in flags:
+            print(json.dumps(result, indent=2))
+        else:
+            print(flags["format"].format(**result))
