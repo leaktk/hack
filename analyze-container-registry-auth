@@ -39,22 +39,27 @@ def with_error(result, message, **kwargs):
     }
 
 
-def auth_info_creds(auth_info):
-    encoded_token = auth_info.get("auth")
-    if encoded_token:
+def enrich_auth_info(auth_info):
+    auth = auth_info.get("auth")
+    if auth:
         try:
-            token = base64.b64decode(encoded_token).decode("utf-8")
+            user_pass = base64.b64decode(auth).decode().split(":", 1)
         except Exception as e:
             raise ValueError("could not decode token") from e
 
-        username, password = token.split(":", 1)
+        if len(user_pass) == 2:
+            auth_info["username"] = user_pass[0]
+            auth_info["password"] = user_pass[1]
+
     elif "username" in auth_info and "password" in auth_info:
         username = auth_info["username"]
         password = auth_info["password"]
+        user_col_pass = f"{username}:{password}".encode("UTF-8")
+        auth_info["auth"] = base64.b64encode(user_col_pass).decode()
     else:
         raise ValueError("could not find auth information")
 
-    return username, password
+    return auth_info
 
 
 def analyze_auth_info(host, auth_info):
@@ -69,15 +74,9 @@ def analyze_auth_info(host, auth_info):
         "analysis": analysis,
     }
 
-    if "email" in auth_info:
-        analysis["email"] = auth_info["email"]
-
-    try:
-        username, password = auth_info_creds(auth_info)
-    except Exception as e:
-        return with_error(result, str(e))
-
-    analysis["username"] = username
+    auth_info = enrich_auth_info(auth_info)
+    analysis["username"] = auth_info.get("username")
+    analysis["email"] = auth_info.get("email")
     params = {}
 
     if "docker" in host:
@@ -97,10 +96,12 @@ def analyze_auth_info(host, auth_info):
     try:
         resp = requests.get(
             url,
-            auth=(username, password),
             allow_redirects=True,
             params=params,
             timeout=10,
+            headers={
+                "Authorization": f"Basic {auth_info['auth']}",
+            },
         )
     except RequestException:
         return with_error(result, "request failed")
