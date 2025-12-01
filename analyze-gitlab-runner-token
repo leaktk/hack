@@ -1,0 +1,102 @@
+#! /usr/bin/env python3
+import json
+import sys
+import requests
+
+__doc__ = f"""
+USAGE
+    {sys.argv[0]} <gitlab-url> <token>
+
+DESCRIPTION
+    Validates a GitLab Runner token. It checks if the token is a live
+    Authentication Token (for checking jobs) or a Registration Token
+    (for registering new runners).
+"""
+
+
+def register_probe(url, token):
+    # Endpoint: POST /api/v4/runners
+    target = f"{url}/api/v4/runners"
+
+    # Payload to register a safe/inert runner
+    payload = {
+        "token": token,
+        "description": "LeakTK Probe",
+        "paused": True,  # Modern equivalent of active=False
+        "locked": True,  # Lock to specific project/group if possible
+        "run_untagged": False,  # Do not pick up untagged jobs
+        "tag_list": "leaktk-probe-do-not-run",
+    }
+
+    try:
+        resp = requests.post(target, json=payload)
+        if resp.status_code == 201:
+            return resp.json(), None
+
+        if resp.status_code == 403:
+            return (
+                None,
+                "Registration forbidden (403). Token may be valid but restricted.",
+            )
+
+        return None, f"Unexpected status ({resp.status_code}): {resp.text[:100]}"
+    except requests.exceptions.RequestException as e:
+        return None, f"request failed: {e}"
+
+
+def analyze(url, token):
+    results = {
+        "valid": None,
+        "analysis": {
+            "host": url,
+            "token": token,
+        },
+    }
+
+    # Normalize URL
+    if not url.startswith("http"):
+        url = f"https://{url}"
+
+    url = url.rstrip("/")
+
+    results["analysis"]["token_type"] = "unknown"
+    if token.startswith("glrtr-"):
+        results["analysis"]["token_type"] = "gitlab_runner_token"
+        runner_token = token
+    elif token.startswith("GR1348941"):
+        results["analysis"]["token_type"] = "gitlab_runner_registration_token"
+        data, error = register_probe(url, token)
+        results["analysis"]["new_probe_runner"] = data
+
+        if error is not None:
+            results["analysis"]["error"] = error
+            return results
+
+        runner_token = data["token"]
+
+    try:
+        resp = requests.post(
+            f"{url}/api/v4/runners/verify", data={"token": runner_token}
+        )
+        results["analysis"]["verify_status_code"] = resp.status_code
+
+        if resp.status_code == 200:
+            results["valid"] = True
+            results["analysis"]["runner_details"] = resp.json()
+            return results
+
+        if resp.status_code == 403:
+            results["valid"] = False
+
+    except requests.exceptions.RequestException as e:
+        results["error"] = f"request failed: {e}"
+
+    return results
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print(__doc__)
+        sys.exit(1)
+
+    print(json.dumps(analyze(sys.argv[1], sys.argv[2])))
