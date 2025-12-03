@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+import os
+import json
+import sys
+import psycopg2
+
+USAGE = f"""
+USAGE:
+    {os.path.basename(sys.argv[0])} <connection-uri>
+    {os.path.basename(sys.argv[0])} <hostname> <username> <password>
+    {os.path.basename(sys.argv[0])} <hostname> <username> <password> <database>
+
+DESCRIPTION
+    Analyze PostgreSQL creds by any of these methods:
+
+    1) A connection URI
+    2) Hostname[:port], username and password using the username as the database
+    3) Hostname[:port], username, password and database
+
+    All of these eventually result in a connection URI passed to the analyzer.
+    The connection URI used will be returned in the analysis results.
+"""
+
+
+def error(message, **kwargs):
+    return {"message": message, **kwargs}
+
+
+def analyze(connection_uri):
+    results = {
+        "valid": False,
+        "analysis": {
+            "connection_uri": connection_uri,
+        },
+    }
+
+    try:
+        # Connect to the database using the URI
+        # Set connect_timeout to avoid hanging indefinitely on bad hosts
+        conn = psycopg2.connect(connection_uri, connect_timeout=5)
+
+        # If we reach here, the credentials are valid
+        results["valid"] = True
+
+        with conn.cursor() as cur:
+            # Gather basic reconnaissance info
+            cur.execute("SELECT version();")
+            version = cur.fetchone()[0]
+
+            cur.execute("SELECT current_user;")
+            user = cur.fetchone()[0]
+
+            cur.execute("SELECT current_database();")
+            dbname = cur.fetchone()[0]
+
+            # Check for table count to gauge size/usage
+            cur.execute(
+                "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';"
+            )
+            table_count = cur.fetchone()[0]
+
+            results["analysis"] = {
+                "version": version,
+                "current_user": user,
+                "database_name": dbname,
+                "public_table_count": table_count,
+            }
+
+        conn.close()
+
+    except psycopg2.OperationalError as e:
+        # This catches connection errors (auth failed, host unreachable, etc.)
+        results["error"] = error(str(e).strip())
+    except Exception as e:
+        results["error"] = error(f"Unexpected error: {str(e)}")
+
+    return results
+
+
+if __name__ == "__main__":
+    match len(sys.argv):
+        case 2:
+            connection_uri = sys.argv[1]
+        case 4:
+            hostname = sys.argv[1]
+            username = sys.argv[2]
+            password = sys.argv[3]
+            connection_uri = f"postgresql://{username}:{password}@{hostname}/{username}"
+        case 5:
+            hostname = sys.argv[1]
+            username = sys.argv[2]
+            password = sys.argv[3]
+            database = sys.argv[4]
+            connection_uri = f"postgresql://{username}:{password}@{hostname}/{database}"
+        case _:
+            print(USAGE)
+            sys.exit(1)
+
+    print(json.dumps(analyze(connection_uri), indent=2))
