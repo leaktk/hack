@@ -46,7 +46,8 @@ def analyze(key_file_path):
         "bitbucket.org",
         "codeberg.org",
         "git.sr.ht",
-        "ssh.dev.azure.com",
+        # This FPs a lot. Need to figure out a better solution
+        # "ssh.dev.azure.com",
         # "source.developers.google.com",
         "git-codecommit.us-east-1.amazonaws.com",
         "git-codecommit.us-east-2.amazonaws.com",
