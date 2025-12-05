@@ -1,0 +1,54 @@
+#!/usr/bin/python3
+
+import sys
+import re
+
+from base64 import b64decode
+from base64 import urlsafe_b64decode
+
+USAGE = """
+USAGE
+    b64 < text.b64
+    b64 text.b64
+
+DESCRIPTION
+    Decode base64 encoded UTF-8 text with optional padding that's either url or
+    normal base64. Also continue decoding recursively for things that are
+    encoded multiple times.
+"""
+
+b64u_chars = re.compile("[-_]")
+
+
+def decode(data):
+    _decode = b64decode
+    if b64u_chars.search(data) is not None:
+        _decode = urlsafe_b64decode
+
+    while True:
+        padding = "=" * (4 - (len(data) % 4))
+
+        try:
+            data = _decode(data + padding).decode(encoding="utf-8")
+        except:
+            return data
+
+
+def main():
+    match len(sys.argv):
+        case 1:
+            infile = sys.stdin
+        case 2:
+            infile = open(sys.argv[2], encoding="UTF-8")
+        case _:
+            print(usage, file=sys.stderr)
+            sys.exit(1)
+
+    try:
+        print(decode(infile.read()))
+    finally:
+        infile.close()
+
+
+if __name__ == "__main__":
+    main()
