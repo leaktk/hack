@@ -39,7 +39,7 @@ def main():
         case 1:
             infile = sys.stdin
         case 2:
-            infile = open(sys.argv[2], encoding="UTF-8")
+            infile = open(sys.argv[1], encoding="UTF-8")
         case _:
             print(usage, file=sys.stderr)
             sys.exit(1)
