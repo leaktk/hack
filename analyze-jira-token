@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+import os
+import json
+import sys
+import requests
+
+from base64 import b64encode
+
+USAGE = f"""
+USAGE:
+    {os.path.basename(sys.argv[0])} <hostname> <email> <token>
+    {os.path.basename(sys.argv[0])} <hostname> <token>
+
+DESCRIPTION
+    Analyze a Jira by any of these methods:
+
+    1) Accepting hostname with the account's email and token (required for jira cloud)
+    2) Accepting hostname with the account's token only (possible in Jira self-hosted)
+"""
+
+
+def analyze(hostname, auth_header):
+    # Ensure hostname has protocol
+    if not hostname.startswith("http"):
+        hostname = f"https://{hostname}"
+
+    # Endpoint to check "Who am I"
+    url = f"{hostname}/rest/api/2/myself"
+    results = {"valid": False, "analysis": {}}
+
+    try:
+        resp = requests.get(url, headers={"Authorization": auth_header}, timeout=10)
+        results["analysis"]["status_code"] = resp.status_code
+
+        if resp.status_code == 200:
+            results["valid"] = True
+            user_data = resp.json()
+            # Extract high-value info for triage
+            results["analysis"]["user"] = {
+                "displayName": user_data.get("displayName"),
+                "emailAddress": user_data.get("emailAddress"),
+                "active": user_data.get("active"),
+            }
+        elif resp.status_code == 401:
+            results["valid"] = False
+            results["analysis"]["error"] = "Unauthorized: Invalid credentials"
+        else:
+            results["analysis"]["raw"] = resp.text[:200]
+
+    except requests.exceptions.RequestException as e:
+        results["error"] = {"message": f"request failed: {e}"}
+
+    return results
+
+
+if __name__ == "__main__":
+    match len(sys.argv):
+        case 3:
+            hostname = sys.argv[1]
+            auth_header = f"Bearer {sys.argv[2]}"
+        case 4:
+            hostname = sys.argv[1]
+            username = sys.argv[2]
+            token = sys.argv[3]
+            b64_user_pass = b64encode(f"{username}:{token}").decode()
+            auth_header = f"Basic {b64_user_pass}"
+        case _:
+            print(USAGE, file=sys.stderr)
+            sys.exit(1)
+
+    print(json.dumps(analyze(hostname, auth_header)))
