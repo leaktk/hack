@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 
-import sys
-import os
 import json
-import subprocess
-import re
 import logging
+import os
+import re
+import shlex
+import subprocess
+import sys
+
+from argparse import ArgumentParser
 from typing import Dict, Any, List, Union
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
+
 logger = logging.getLogger("leaktk-on-result")
 
 
@@ -61,22 +66,20 @@ def replace_template_vars(command: str, data: Dict[str, Any]) -> str:
     return re.sub(pattern, replace_match, command)
 
 
-def process_result(
-    working_dir: str, command_args: List[str], result: Dict[str, Any]
-) -> bool:
+def process_result(workdir: str, cmdargs: List[str], result: Dict[str, Any]) -> bool:
     """
     Process a single result by replacing template vars in command and executing it.
     Returns True if successful, False otherwise.
     """
-    processed_args = [replace_template_vars(arg, result) for arg in command_args]
+    processed_args = [replace_template_vars(arg, result) for arg in cmdargs]
 
-    logger.info(f"Running command: {' '.join(processed_args)}")
+    logger.debug(f"Running command: {shlex.join(processed_args)}")
 
     try:
         # Execute the command in the working directory
         process = subprocess.run(
             processed_args,
-            cwd=working_dir,
+            cwd=workdir,
             capture_output=True,
             text=True,
             check=False,  # Don't raise exception, we'll handle errors
@@ -94,17 +97,28 @@ def process_result(
         return False
 
 
+def parse_args(args):
+    parser = ArgumentParser(
+        prog="leaktk-on-result", description="Run a command on each leaktk result"
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=("NOTSET", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"),
+        default="INFO",
+    )
+    parser.add_argument("workdir")
+    parser.add_argument("cmdargs", nargs="*")
+    return parser.parse_args(args)
+
+
 def main():
-    if len(sys.argv) < 3:
-        print(f"Usage: {sys.argv[0]} WORKING_DIR COMMAND [ARGS...]", file=sys.stderr)
+    args = parse_args(sys.argv[1:])
+
+    if not os.path.isdir(args.workdir):
+        logger.error(f"The working directory doesn't exist: {args.workdir}")
         sys.exit(1)
 
-    working_dir = sys.argv[1]
-    command_args = sys.argv[2:]
-
-    if not os.path.isdir(working_dir):
-        logger.error(f"Working directory doesn't exist: {working_dir}")
-        sys.exit(1)
+    logger.setLevel(getattr(logging, args.log_level))
 
     success = True
     scan_data = ""
@@ -116,12 +130,15 @@ def main():
             # Find the results array
             if "results" in data and isinstance(data["results"], list):
                 results = data["results"]
-                logger.info(f"Processing {len(results)} results")
+                logger.info(f"Processing {len(results)} results...")
 
                 for i, result in enumerate(results):
-                    logger.info(f"Processing result {i+1}/{len(results)}")
-                    if not process_result(working_dir, command_args, result):
+                    logger.debug(f"Processing result {i+1}/{len(results)}")
+                    if not process_result(args.workdir, args.cmdargs, result):
                         success = False
+
+                if success:
+                    logger.info(f"Results processed successfully!")
             else:
                 logger.error("No results array found in input data")
                 success = False
