@@ -1,0 +1,119 @@
+#!/usr/bin/python3
+
+import os
+import sys
+import base64
+import zlib
+import secrets
+import struct
+
+__doc__ = f"""
+USAGE
+    {os.path.basename(sys.argv[0])} [OPTIONS]
+
+DESCRIPTION
+    Generates synthetic GitLab Routable Personal Access Tokens (Cell-Aware).
+    Format: glpat-<base64_payload>.<version>.<length><crc32>
+
+OPTIONS
+    --help              show this help text
+    --org_id=INT        Organization ID (default: 1)
+    --user_id=INT       User ID (default: 1)
+    --count=INT         Number of tokens to generate (default: 1)
+"""
+
+
+def to_base36(value, min_length=0):
+    """Helper to emulate Ruby's integer.to_s(36)."""
+    if value == 0:
+        result = "0"
+    else:
+        chars = "0123456789abcdefghijklmnopqrstuvwxyz"
+        result = ""
+        while value:
+            value, remainder = divmod(value, 36)
+            result = chars[remainder] + result
+
+    return result.rjust(min_length, "0")
+
+
+def generate_token(org_id, user_id):
+    # Constants from GitLab source
+    PREFIX = "glpat-"
+    VERSION = 1
+    VERSION_STR = to_base36(VERSION, min_length=2)
+
+    # Build Routing Payload (Keys must be sorted: 'o' then 'u')
+    # IDs are converted to base36
+    oid_b36 = to_base36(int(org_id))
+    uid_b36 = to_base36(int(user_id))
+
+    # Payload format: "key:value\nkey:value"
+    routing_payload = f"o:{oid_b36}\nu:{uid_b36}"
+
+    # Construct Encodable Binary Data
+    # Structure: [16 bytes random] + [payload string] + [1 byte payload length]
+    random_bytes = secrets.token_bytes(16)
+    payload_bytes = routing_payload.encode("utf-8")
+    size_byte = struct.pack("B", len(payload_bytes))
+
+    encodable_data = random_bytes + payload_bytes + size_byte
+
+    # Base64 Encode (URL-safe, no padding)
+    b64_payload = base64.urlsafe_b64encode(encodable_data).decode("utf-8").rstrip("=")
+
+    # Calculate Length Holder (Base36, 2 chars)
+    # This represents the length of the base64 string
+    length_holder = to_base36(len(b64_payload), min_length=2)
+
+    # Assemble Pre-CRC Token
+    # Format: prefix + payload + . + version + . + length
+    pre_crc_token = f"{PREFIX}{b64_payload}.{VERSION_STR}.{length_holder}"
+
+    # Calculate CRC32 (Base36, 7 chars)
+    # crc32 of the string up to this point
+    crc_val = zlib.crc32(pre_crc_token.encode("utf-8"))
+    crc_str = to_base36(crc_val, min_length=7)
+
+    return f"{pre_crc_token}{crc_str}"
+
+
+def main(args):
+    flags = {}
+    pos_args = []
+
+    if "--help" in args:
+        print(__doc__)
+        return 0
+
+    for arg in args:
+        if arg.startswith("--"):
+            try:
+                key, value = arg[2:].split("=", 1)
+                flags[key] = value
+            except ValueError:
+                print(f"Error: Invalid flag format '{arg}'. Use --key=value")
+                return 1
+        else:
+            # Fixed typo from template: pos_arg -> pos_args
+            pos_args.append(arg)
+
+    # Parse flags with defaults
+    org_id = flags.get("org_id", 1)
+    user_id = flags.get("user_id", 1)
+    count = int(flags.get("count", 1))
+
+    # Generate tokens
+    try:
+        for _ in range(count):
+            token = generate_token(org_id, user_id)
+            print(token)
+    except Exception as e:
+        print(f"Error generating token: {e}")
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
