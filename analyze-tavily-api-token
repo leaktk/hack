@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+import json
+import sys
+import requests
+from http import HTTPStatus
+
+def analyze(api_token):
+    url = "https://api.tavily.com/search"
+    headers = {"Authorization": f"Bearer {api_token}"}
+    # Minimal query to check validity and usage
+    data = {"query": "test", "search_depth": "basic", "max_results": 1}
+    
+    results = {
+        "valid": False,
+        "analysis": {},
+    }
+
+    try:
+        resp = requests.post(url, headers=headers, json=data)
+        results["analysis"]["status_code"] = resp.status_code
+        
+        try:
+            results["analysis"]["status"] = HTTPStatus(resp.status_code).phrase
+        except ValueError:
+            results["analysis"]["status"] = "Unknown"
+
+        if resp.status_code == 200:
+            results["valid"] = True
+            # Tavily returns the query and results on success
+            results["analysis"]["note"] = "Token is active and has remaining credits."
+        elif resp.status_code == 401:
+            results["valid"] = False
+            results["analysis"]["error"] = "Unauthorized: Invalid API key."
+        elif resp.status_code == 429:
+            results["valid"] = True
+            results["analysis"]["error"] = "Rate limit exceeded or out of credits."
+        else:
+            results["analysis"]["raw"] = resp.text[:128]
+            
+    except Exception as e:
+        results["error"] = str(e)
+
+    return results
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <api-token>")
+        sys.exit(1)
+
+    print(json.dumps(analyze(sys.argv[1])))
