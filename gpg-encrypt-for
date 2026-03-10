@@ -1,24 +1,41 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
 # This script is meant for use with leaktk-on-result
 # USAGE
-#       leaktk-on-result <workdir_path> gpg-encrypt-for "${GPG_RECIPIENT}" "{{locatin.path}}"
+#       leaktk-on-result <workdir_path> gpg-encrypt-for GPG_RECIPIENT... "{{location.path}}"
+#
+# DESCRIPTION
+#       GPG_RECIPIENT... - one or more GPG recipients that the file should be encrypted for
 #
 # NOTE
 #       This replaces the original file!
 set -euo pipefail
-recipient="$1"
-filepath="$2"
-outputpath="${filepath}.gpg"
 
 function log {
   echo "$@" >&2
 }
 
+
+# 2 or more arguments required
+if [[ $# -lt 2 ]]
+then
+	log '[ERROR] this command needs at least one recipient and a path argument'
+	exit 1
+fi
+
+recipient_flags=()
+for recipient in "${@:1:$#-1}"
+do
+        recipient_flags+=('--recipient' "${recipient}")
+done
+
+filepath="${*:(-1)}"
+outputpath="${filepath}.gpg"
+
 if [[ -f "${filepath}" ]]
 then
-  gpg --batch --yes --trust-model always --encrypt --recipient "${recipient}" --output "${outputpath}" "${filepath}"
+  gpg --batch --yes --trust-model always --encrypt "${recipient_flags[@]}" --output "${outputpath}" "${filepath}"
   log "[INFO] file encrypted: ${filepath} -> ${outputpath}"
-  rm "${filepath}"
+  rm -- "${filepath}"
   log "[INFO] file removed: ${filepath}"
 else
   if [[ -f "${outputpath}" ]]
