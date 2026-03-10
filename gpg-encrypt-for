@@ -14,9 +14,8 @@ function log {
   echo "$@" >&2
 }
 
-
 # 2 or more arguments required
-if [[ $# -lt 2 ]]
+if [[ "$#" -lt '2' ]]
 then
 	log '[ERROR] this command needs at least one recipient and a path argument'
 	exit 1
