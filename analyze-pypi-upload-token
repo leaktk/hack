@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+import json
+import sys
+import requests
+from http import HTTPStatus
+
+def error(message, **kwargs):
+    return {"message": message, **kwargs}
+
+def analyze(api_token):
+    # PyPI tokens use Basic Auth with "__token__" as the username
+    results = {
+        "valid": False,
+        "analysis": {},
+    }
+
+    try:
+        # A dummy POST request to the upload API.
+        # Valid token + no file data = 400 Bad Request
+        # Invalid token = 403 Forbidden
+        resp = requests.post(
+            "https://upload.pypi.org/legacy/", 
+            auth=("__token__", api_token),
+            data={":action": "file_upload"}
+        )
+        
+        if resp.status_code == 400:
+            results["valid"] = True
+            results["analysis"]["note"] = "Token is valid"
+        elif resp.status_code in (401, 403):
+            results["valid"] = False
+            results["analysis"]["note"] = "Invalid or revoked token"
+        else:
+            results["error"] = error("unexpected response", code=resp.status_code)
+
+    except requests.exceptions.RequestException as e:
+        results["error"] = error(f"request failed: {e}")
+
+    return results
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <pypi-token>")
+        sys.exit(1)
+
+    print(json.dumps(analyze(sys.argv[1])))
