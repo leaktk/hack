@@ -21,6 +21,12 @@ SYNOPSIS
 
 def account_id(access_key_id):
     trimmed_access_key_id = access_key_id[4:]  # remove KeyID prefix
+    if trimmed_access_key_id[0].upper() in ["I", "J"]:
+        print((f"\"{access_key_id}\" has I or J after KeyID prefix. "
+               "KeyID may be so old that it predates encoding"), file=sys.stderr)
+        print("Try \"aws sts get-access-key-info KeyID\"", file=sys.stderr)
+        return "UNKNOWN"
+
     x = base64.b32decode(trimmed_access_key_id)
     y = x[0:6]
     z = int.from_bytes(y, byteorder="big", signed=False)
@@ -31,7 +37,7 @@ def account_id(access_key_id):
         signed=False,
     )
 
-    return (z & mask) >> 7
+    return f"{(z & mask) >> 7:012d}"
 
 
 def main(argv):
@@ -42,7 +48,7 @@ def main(argv):
             print(USAGE)
             return 1
 
-        print(f"aws_access_key_id={arg} aws_account_id={account_id(arg):012d}")
+        print(f"aws_access_key_id={arg} aws_account_id={account_id(arg)}")
 
     return 0
 
