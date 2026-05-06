@@ -1,0 +1,44 @@
+#!/bin/sh
+#
+# USAGE
+#	leaktk-scan-gh-org <orgname> > results.jsonl
+#
+# REQUIRES
+# 	leaktk   The scanner
+# 	gh       The GitHub CLI tool
+set -eu
+
+if ! command -v gh >/dev/null 2>&1
+then
+	echo 'This secript requires the GitHub CLI tool (gh).'
+	echo
+	echo 'Fedora users:'
+	echo '    sudo dnf install gh'
+	echo
+	echo 'Mac users:'
+	echo '    brew install gh'
+	echo
+	echo 'More info:'
+	echo '    https://github.com/cli/cli#installation'
+	exit 1
+fi
+if ! command -v leaktk >/dev/null 2>&1
+then
+	echo 'This secript requires the LeakTK CLI tool (leaktk).'
+	echo
+	echo 'More info:'
+	echo '    https://github.com/leaktk/leaktk/blob/HEAD/docs/install.md'
+	exit 1
+fi
+
+if [ -z "$(gh auth status --json hosts --jq '.hosts["github.com"][] | select(.active and .state == "success")')" ]
+then
+	echo 'Please login to the GitHub CLI: gh auth login'
+	exit 1
+fi
+
+github_org="$1"
+gh api \
+	--paginate "orgs/${github_org}/repos" \
+	--jq '.[].clone_url as $clone_url | {"id": $clone_url, "kind": "GitRepo", "resource": $clone_url}' \
+	| leaktk listen
