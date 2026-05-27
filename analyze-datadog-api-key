@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+import json
+import sys
+import requests
+
+def analyze(api_key):
+    headers = {"DD-API-KEY": api_key}
+    results = {
+        "valid": False,
+        "analysis": {},
+    }
+
+    resp = requests.get("https://api.datadoghq.com/api/v1/validate", headers=headers)
+    results["analysis"]["status_code"] = resp.status_code
+
+    if resp.status_code == 200:
+        results["valid"] = True
+        results["analysis"]["user"] = resp.json()
+    elif resp.status_code == 403:
+        results["valid"] = False
+    else:
+        results["analysis"]["raw"] = resp.text[:125] + "..." if len(resp.text) > 128 else resp.text
+
+    return results
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"USAGE: {sys.argv[0]} <api-key>")
+        sys.exit(1)
+
+    print(json.dumps(analyze(*sys.argv[1:])))
