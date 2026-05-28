@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+from http import HTTPStatus
+import requests
+
+__doc__ = f"""
+USAGE
+    {os.path.basename(__file__)} <username> <personal-access-token>
+
+DESCRIPTION
+    Validates a Docker Hub Personal Access Token (PAT).
+    It exchanges the PAT for a JWT and attempts to list the user's repositories
+    to assess the token's active status and reach.
+"""
+
+def error(message, **kwargs):
+    return {"message": message, **kwargs}
+
+def analyze(username, pat):
+    results = {
+        "valid": False,
+        "analysis": {},
+    }
+
+    try:
+        # Docker Hub requires exchanging the PAT for a JWT token first
+        login_resp = requests.post(
+            "https://hub.docker.com/v2/users/login",
+            json={"username": username, "password": pat}
+        )
+        
+        results["analysis"]["login_status_code"] = login_resp.status_code
+        
+        try:
+            results["analysis"]["status"] = HTTPStatus(login_resp.status_code).phrase
+        except ValueError:
+            results["analysis"]["status"] = "Unknown"
+
+        if login_resp.status_code == 200:
+            results["valid"] = True
+            token = login_resp.json().get("token")
+            
+            # Use the JWT token to fetch the user's repositories
+            headers = {"Authorization": f"Bearer {token}"}
+            repo_resp = requests.get(
+                f"https://hub.docker.com/v2/repositories/{username}/",
+                headers=headers
+            )
+            
+            results["analysis"]["repo_fetch_status_code"] = repo_resp.status_code
+            if repo_resp.status_code == 200:
+                repo_data = repo_resp.json()
+                results["analysis"]["repository_count"] = repo_data.get("count", 0)
+                repos = repo_data.get("results", [])
+                results["analysis"]["repositories"] = [r.get("name") for r in repos]
+            else:
+                raw = repo_resp.text
+                results["analysis"]["repo_fetch_error"] = raw[:125] + "..." if len(raw) > 128 else raw
+
+        elif login_resp.status_code == 401:
+            results["valid"] = False
+        else:
+            raw = login_resp.text
+            if len(raw) > 128:
+                raw = raw[:125] + "..."
+            results["analysis"]["raw"] = raw
+            results["error"] = error("unexpected response", code=login_resp.status_code)
+            
+    except requests.exceptions.RequestException as e:
+        results["error"] = error(f"request failed: {e}")
+
+    return results
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print(__doc__)
+        sys.exit(1)
+
+    print(json.dumps(analyze(*sys.argv[1:])))
