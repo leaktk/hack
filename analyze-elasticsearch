@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+import json
+import sys
+import requests
+
+def analyze(host, username, password):
+    if not host.startswith("http"):
+        host = f"https://{host}"
+        
+    results = {
+        "valid": False,
+        "analysis": {},
+    }
+
+    try:
+        resp = requests.get(
+            f"{host}/_cluster/health", 
+            auth=(username, password),
+            timeout=10
+        )
+        
+        if resp.status_code == 200:
+            info = resp.json()
+            results["valid"] = True
+            results["analysis"]["cluster_name"] = info.get("cluster_name")
+            results["analysis"]["status"] = info.get("status")
+            results["analysis"]["number_of_nodes"] = info.get("number_of_nodes")
+            results["analysis"]["number_of_data_nodes"] = info.get("number_of_data_nodes")
+            results["analysis"]["active_primary_shards"] = info.get("active_primary_shards")
+        elif resp.status_code == 401:
+            results["valid"] = False
+            results["error"] = "unauthorized"
+        else:
+            results["error"] = {"message": "unexpected response", "code": resp.status_code}
+            
+    except requests.exceptions.RequestException as e:
+        results["error"] = {"message": f"request failed: {e}"}
+
+    return results
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        print(f"USAGE: {sys.argv[0]} <host> <username> <password>")
+        sys.exit(1)
+
+    print(json.dumps(analyze(*sys.argv[1:])))
