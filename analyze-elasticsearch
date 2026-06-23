@@ -3,18 +3,24 @@ import json
 import sys
 import requests
 
-def analyze(host, username, password):
-    if not host.startswith("http"):
-        host = f"https://{host}"
+from urllib.parse import urlparse
+
+def analyze(url, username, password):
+    if not url.startswith("http"):
+        url = f"https://{url}"
         
     results = {
         "valid": False,
-        "analysis": {},
+        "analysis": {
+            "url": url,
+            "username": username,
+            "password": password,
+        },
     }
 
     try:
         resp = requests.get(
-            f"{host}/_cluster/health", 
+            f"{url}/_cluster/health", 
             auth=(username, password),
             timeout=10
         )
@@ -39,8 +45,17 @@ def analyze(host, username, password):
     return results
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print(f"USAGE: {sys.argv[0]} <host> <username> <password>")
-        sys.exit(1)
+    match len(sys.argv):
+        case 2:
+            netloc = urlparse(sys.argv[1]).netloc
+            userinfo, url = netloc.split("@", 1)
+            username, password = userinfo.split(":", 1)
+            result = analyze(url, username, password)
+        case 4:
+            result = analyze(*sys.argv[1:])
+        case _:
+            print(f"USAGE: {sys.argv[0]} <url> <username> <password>")
+            print(f"USAGE: {sys.argv[0]} https://<username>:<password>@url")
+            sys.exit(1)
 
-    print(json.dumps(analyze(*sys.argv[1:])))
+    print(json.dumps(result, indent=2))
