@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+
+_usage="
+USAGE
+	github-pat-hash <github-pat>
+
+DESCRIPTION
+
+	Display the hash of a GitHub personal access token in the format that
+	is used in GitHub's enterprise audit logs.
+
+SEE ALSO
+
+	* GitHub docs on \"Identifying audit log events performed by an access
+	  token\"
+"
+
+print_usage()
+{
+	echo "${_usage}"
+}
+
+if [ "$#" != 1 ]
+then
+	print_usage
+	exit 1
+fi
+
+exec echo -n "$1" | openssl dgst -sha256 -binary | base64
