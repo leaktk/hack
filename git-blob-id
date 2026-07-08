@@ -1,0 +1,43 @@
+#!/bin/sh
+set -eu
+
+_usage='
+USAGE
+	git-blob-id <repo> <commit> <file-path>
+
+DESCRIPTION
+	Return the blob id for a file in a commit in a repo.
+	If the repo path does not exist, it will treat it as
+	a clone URL and try to clone it.
+'
+
+show_usage()
+{
+	echo "${_usage}"
+}
+
+main()
+{
+	repo="$1"
+	commit="$2"
+	filepath="$3"
+
+	if [ ! -e "${repo}" ]
+	then
+		clone_dir="${TMPDIR:-/tmp}/git-blob-id.$$"
+		trap 'rm -rf "${clone_dir}"' EXIT
+		git clone --mirror "${repo}" "${clone_dir}" >/dev/null 2>&1
+		repo="${clone_dir}"
+	fi
+
+	git -C "${clone_dir}" fetch origin "${commit}" >/dev/null 2>&1
+	git -C "${clone_dir}" ls-tree "${commit}" "${filepath}" | awk '{print $3}'
+}
+
+if [ "$#" != 3 ]
+then
+	show_usage
+	exit 1
+else
+	main "$@"
+fi
