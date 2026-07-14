@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+google_api_key="$1"
+curl -s \
+  "https://www.googleapis.com/identitytoolkit/v3/relyingparty/getProjectConfig?key=${google_api_key}" \
+  | grep --color=never -Po '\bprojects\/\K\d+\b' \
+  | sort -u || echo "could not find project" >&2
