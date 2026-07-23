@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+import keyring
+import sys
+import os
+import requests
+import json
+import re
+
+sanatize_re = re.compile(r"[^\w\-]+")
+attachment_url_path_re = re.compile(r"[A-Z]+-\d+\/fields/attachment/\d+/content")
+USAGE = f"""
+USAGE
+    {os.path.basename(sys.argv[0])} <jira-instance> <jira-username> <issue-key>...
+
+DESCRIPTION
+    Clones jira issues into the ./<issue-key> for review.
+
+    Auth uses keyring:
+        $ keyring set <jira-instance> <jira-username>
+        Password: <jira-password>
+"""
+
+
+def sanatize(s):
+    return sanatize_re.sub("_", s)
+
+
+class Jira:
+    def __init__(self, instance, auth):
+        self._instance_url = "https://" + instance
+        self._auth = auth
+
+    def fetch_issues(self, keys):
+        url = self._instance_url + "/rest/api/3/search/jql"
+        jql = "issue IN (" + ",".join(f'"{k}"' for k in keys) + ")"
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        payload = {
+            "fields": ["*all"],
+            "fieldsByKeys": True,
+            "jql": jql,
+            "maxResults": 1,
+        }
+
+        is_last = False
+        while not is_last:
+            resp = requests.post(url, json=payload, headers=headers, auth=self._auth)
+            resp.raise_for_status()
+            result = resp.json()
+            is_last = result["isLast"]
+            payload["nextPageToken"] = result.get("nextPageToken")
+            for issue in result["issues"]:
+                yield issue
+
+    def save_issue(self, issue):
+        dest = sanatize(issue["key"])
+        print("saving issue: url:", issue["key"], "dest:", dest)
+        self._write(issue, dest)
+        return dest
+
+    def _write(self, obj, dest):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                self._write(value, os.path.join(dest, sanatize(str(key))))
+        elif isinstance(obj, list):
+            for key, value in enumerate(obj):
+                self._write(value, os.path.join(dest, sanatize(str(key))))
+        else:
+            parent = os.path.dirname(dest)
+            if not os.path.isdir(parent):
+                os.makedirs(parent)
+
+            with open(dest, "wb") as f:
+                if isinstance(obj, str):
+                    if attachment_url_path_re.fullmatch(dest):
+                        print("saving attachment: url:", obj, "dest:", dest)
+                        with requests.get(obj, auth=self._auth, stream=True) as resp:
+                            resp.raise_for_status()
+                            for chunk in resp.iter_content(chunk_size=4096):
+                                f.write(chunk)
+                    else:
+                        f.write(obj.encode("UTF-8"))
+                        f.write(b"\n")
+                else:
+                    f.write(json.dumps(obj).encode("UTF-8"))
+                    f.write(b"\n")
+
+
+def main(args):
+    if len(args) < 3:
+        print(USAGE)
+        sys.exit(1)
+
+    jira_instance = args[0]
+    jira_username = args[1]
+    jira_password = keyring.get_password(jira_instance, jira_username)
+    jira = Jira(jira_instance, (jira_username, jira_password))
+
+    for issue in jira.fetch_issues(args[2:]):
+        path = jira.save_issue(issue)
+        print("data saved at:", path)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
