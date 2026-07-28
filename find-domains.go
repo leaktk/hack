@@ -5,9 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -213,6 +215,7 @@ var tlds = []string{
 
 var domainPattern *regexp.Regexp
 var prefilter *ahocorasick.Trie
+var buf = make([]byte, 4096 * 1024)
 
 func init() {
 	trieBuilder := ahocorasick.NewTrieBuilder()
@@ -244,13 +247,9 @@ func validDomain(hostname string) bool {
 	return len(ips) > 0
 }
 
-func main() {
-	reader := bufio.NewReader(os.Stdin)
-	seen := map[string]bool{}
-	buf := make([]byte, 4096 * 1024)
-
+func printDomains(seen map[string]bool, r io.Reader) {
 	for {
-		n, err := reader.Read(buf)
+		n, err := r.Read(buf)
 		block := buf[:n]
 
 		if len(block) > 0 && len(prefilter.MatchString(string(block))) > 0 {
@@ -277,5 +276,35 @@ func main() {
 			}
 			return
 		}
+	}
+}
+
+func main() {
+	seen := map[string]bool{}
+	if len(os.Args) == 1 {
+		printDomains(seen, bufio.NewReader(os.Stdin))
+		return
+	}
+
+	for _, root := range os.Args[1:] {
+		filepath.WalkDir(root,  func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				log.Printf("%v path=%q", err, path)
+				return nil
+			}
+
+			if !d.Type().IsRegular() {
+				return nil
+			}
+
+			f, err := os.Open(path)
+			if err != nil {
+				log.Printf("%v path=%q", err, path)
+				return nil
+			}
+			defer f.Close()
+			printDomains(seen, bufio.NewReader(f))
+			return nil
+		})
 	}
 }

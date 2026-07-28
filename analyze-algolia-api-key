@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+from http import HTTPStatus
+import requests
+
+__doc__ = f"""
+USAGE
+    {os.path.basename(__file__)} <app_id> <index_name> <api_key>
+
+DESCRIPTION
+    Validates an Algolia API key by checking general index listing access 
+    and falling back to querying a specific index if it's a restricted key.
+"""
+
+def error(message, **kwargs):
+    return {"message": message, **kwargs}
+
+def analyze(app_id, index_name, api_key):
+    headers = {
+        "X-Algolia-Application-Id": app_id,
+        "X-Algolia-API-Key": api_key,
+    }
+    results = {
+        "valid": False,
+        "analysis": {},
+    }
+
+    try:
+        # 1. Try listing all indices (requires Admin or listIndexes ACL)
+        resp = requests.get(f"https://{app_id}.algolia.net/1/indexes", headers=headers)
+        results["analysis"]["list_status_code"] = resp.status_code
+
+        if resp.status_code == 200:
+            results["valid"] = True
+            results["analysis"]["acl_scope"] = "Elevated (listIndexes allowed)"
+            results["analysis"]["indices"] = [item.get("name") for item in resp.json().get("items", [])]
+            return results
+        
+        # 2. Fallback: Try querying the specific index (works for Search-only keys)
+        search_resp = requests.post(
+            f"https://{app_id}.algolia.net/1/indexes/{index_name}/query",
+            headers=headers,
+            json={"params": "hitsPerPage=1"}
+        )
+        results["analysis"]["search_status_code"] = search_resp.status_code
+
+        try:
+            results["analysis"]["status"] = HTTPStatus(search_resp.status_code).phrase
+        except ValueError:
+            results["analysis"]["status"] = "Unknown"
+
+        if search_resp.status_code == 200:
+            results["valid"] = True
+            results["analysis"]["acl_scope"] = f"Restricted / Search-only (accessible to {index_name})"
+            results["analysis"]["total_records"] = search_resp.json().get("nbHits")
+        elif search_resp.status_code in [401, 403]:
+            results["valid"] = False
+        else:
+            raw = search_resp.text
+            if len(raw) > 128:
+                raw = raw[:125] + "..."
+            results["analysis"]["raw"] = raw
+            results["error"] = error("unexpected response", code=search_resp.status_code)
+
+    except requests.exceptions.RequestException as e:
+        results["error"] = error(f"request failed: {e}")
+
+    return results
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        print(__doc__)
+        sys.exit(1)
+
+    print(json.dumps(analyze(*sys.argv[1:])))
