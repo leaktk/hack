@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+import os
+import re
+import sys
+
+_USAGE = f"""
+USAGE
+    {os.path.basename(sys.argv[0])} .gitattributes > .gitleaks.toml
+
+DESCRIPTION
+    Take a gitattributes file and convert git-crypt items to a gitleaks
+    allowlist.
+
+NOTE
+    Use with caution. This will also automatically ignore things in the past
+    and future at those paths. You may wish to do a leaktk scan first to make
+    sure there are no past secrets added. Once confirmed, it would be good
+    to re-run this script after updating the .gitattributes to make sure
+    the allowlist items are in sync.
+"""
+
+
+def parse_path(line):
+    is_quoted = False
+    is_escaped = False
+    is_splat = False
+    is_recursive = False
+    pattern = [r"(?:^|\/)"]
+    for c in line:
+        if is_escaped:
+            pattern.append("\\")
+            pattern.append(c)
+            is_escaped = False
+        elif c == "\\":
+            is_escaped = True
+        elif c == '"':
+            is_quoted = not is_quoted
+        elif c == "*":
+            if is_splat:
+                pattern.append('.*')
+                is_splat = False
+                is_recursive = False
+            else:
+                is_splat = True
+        elif not is_quoted and c in " \t":
+            break
+        else:
+            if is_splat:
+                pattern.append(r"[^\/]*")
+                is_splat = False
+            pattern.append(re.escape(c))
+
+    pattern.append(r"$")
+    return "".join(pattern)
+
+def main(args):
+    if not len(args) == 1:
+        print(_USAGE)
+        return
+
+    path = args[0]
+    allowed_paths = []
+    for line in open(path):
+        line = line.strip()
+        if not line:
+            continue
+
+        if line[0] == "#":
+            continue
+
+        if "!filter" in line or "!diff" in line:
+            continue
+
+        if not ("filter=git-crypt" in line and "diff=git-crypt" in line):
+            continue
+
+        allowed_paths.append(parse_path(line))
+
+    if allowed_paths:
+        print("[allowlist]")
+        print("  paths = [")
+        for allowed_path in allowed_paths:
+            print("    # Allow generated from .gitattributes for git-crypt")
+            print(f"    '''{allowed_path}''',\n")
+        print("  ]")
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
