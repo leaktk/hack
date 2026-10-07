@@ -24,7 +24,6 @@ def parse_path(line):
     is_quoted = False
     is_escaped = False
     is_splat = False
-    is_recursive = False
     pattern = [r"(?:^|\/)"]
     for c in line:
         if is_escaped:
@@ -39,7 +38,6 @@ def parse_path(line):
             if is_splat:
                 pattern.append('.*')
                 is_splat = False
-                is_recursive = False
             else:
                 is_splat = True
         elif not is_quoted and c in " \t":
@@ -49,6 +47,11 @@ def parse_path(line):
                 pattern.append(r"[^\/]*")
                 is_splat = False
             pattern.append(re.escape(c))
+
+    # handle a trailing single splat
+    if is_splat:
+        pattern.append(r"[^\/]*")
+        is_splat = False
 
     pattern.append(r"$")
     return "".join(pattern)
