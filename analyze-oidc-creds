@@ -16,20 +16,38 @@ def decode_jwt_part(part_str):
         return None
 
 
-def analyze(token_url, client_id, client_secret):
+def get_token_endpoint(issuer_url):
+    issuer_url = issuer_url.rstrip("/")
+    resp = requests.get(
+        f"{issuer_url}/.well-known/openid-configuration",
+        headers={"Content-Type": "application/json"},
+    )
+    openid_config = resp.json()
+    return openid_config["token_endpoint"]
+
+
+def analyze(issuer_url, client_id, client_secret):
     """
     Attempts to obtain an OIDC token to validate credentials.
     """
+    token_endpoint = get_token_endpoint(issuer_url)
     data = {
         "grant_type": "client_credentials",
         "client_id": client_id,
         "client_secret": client_secret,
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    result = {"valid": False, "analysis": {}}
+    result = {
+        "valid": False,
+        "analysis": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "token_endpoint": token_endpoint,
+        },
+    }
 
     try:
-        response = requests.post(token_url, data=data, headers=headers)
+        response = requests.post(token_endpoint, data=data, headers=headers)
         response.raise_for_status()
         token_data = response.json()
 
@@ -66,12 +84,7 @@ def analyze(token_url, client_id, client_secret):
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print("USAGE:\n\t analyze-oidc-config <token_url> <client_id> <client_secret>")
+        print("USAGE:\n\t analyze-oidc-config <issuer_url> <client_id> <client_secret>")
         sys.exit(1)
 
-    token_url_arg = sys.argv[1]
-    client_id_arg = sys.argv[2]
-    client_secret_arg = sys.argv[3]
-    print(
-        json.dumps(analyze(token_url_arg, client_id_arg, client_secret_arg), indent=2)
-    )
+    print(json.dumps(analyze(*sys.argv[1:]), indent=2))
