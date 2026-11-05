@@ -215,7 +215,7 @@ var tlds = []string{
 
 var domainPattern *regexp.Regexp
 var prefilter *ahocorasick.Trie
-var buf = make([]byte, 4096 * 1024)
+var buf = make([]byte, 4096*1024)
 
 func init() {
 	trieBuilder := ahocorasick.NewTrieBuilder()
@@ -232,7 +232,6 @@ func init() {
 	))
 }
 
-
 func validDomain(hostname string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
 	defer cancel()
@@ -247,7 +246,7 @@ func validDomain(hostname string) bool {
 	return len(ips) > 0
 }
 
-func printDomains(seen map[string]bool, r io.Reader) {
+func printDomains(seen map[string]bool, r io.Reader, noDNS bool) {
 	for {
 		n, err := r.Read(buf)
 		block := buf[:n]
@@ -263,7 +262,7 @@ func printDomains(seen map[string]bool, r io.Reader) {
 					}
 
 					seen[potentialDomain] = true
-					if validDomain(potentialDomain) {
+					if noDNS || validDomain(potentialDomain) {
 						fmt.Println(potentialDomain)
 					}
 				}
@@ -281,13 +280,27 @@ func printDomains(seen map[string]bool, r io.Reader) {
 
 func main() {
 	seen := map[string]bool{}
-	if len(os.Args) == 1 {
-		printDomains(seen, bufio.NewReader(os.Stdin))
-		return
+	var paths []string
+	var noDNS bool
+
+	for _, arg := range os.Args[1:] {
+		if len(arg) == 0 {
+			log.Fatal("empty arg provided")
+		}
+		switch arg {
+		case "-no-dns":
+			noDNS = true
+		default:
+			paths = append(paths, arg)
+		}
 	}
 
-	for _, root := range os.Args[1:] {
-		filepath.WalkDir(root,  func(path string, d fs.DirEntry, err error) error {
+	if len(paths) == 0 {
+		printDomains(seen, bufio.NewReader(os.Stdin), noDNS)
+	}
+
+	for _, root := range paths {
+		filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				log.Printf("%v path=%q", err, path)
 				return nil
@@ -303,7 +316,7 @@ func main() {
 				return nil
 			}
 			defer f.Close()
-			printDomains(seen, bufio.NewReader(f))
+			printDomains(seen, bufio.NewReader(f), noDNS)
 			return nil
 		})
 	}
